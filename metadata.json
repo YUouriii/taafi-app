@@ -1,0 +1,6 @@
+{
+  "name": "BreakFree",
+  "description": "BreakFree (تعافي): Smart pornography content monitoring with 2-minute grace period, automated real-time streak engine, AI urge counselor, bilingual Arabic/English interface, and anonymous peer recovery community.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

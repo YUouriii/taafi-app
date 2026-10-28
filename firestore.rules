@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.cleanSinceTimestamp is int &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('longestStreakSeconds' in data) || data.longestStreakSeconds is int) &&
+             (!('gracePeriodSavesCount' in data) || data.gracePeriodSavesCount is int) &&
+             (!('sosCompletedCount' in data) || data.sosCompletedCount is int) &&
+             (!('relapsesCount' in data) || data.relapsesCount is int);
+    }
+
+    function isValidDailyCheckIn(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.dateString is string && data.dateString.size() <= 32 &&
+             data.moodScore is int && data.moodScore >= 1 && data.moodScore <= 5 &&
+             data.urgeIntensity is int && data.urgeIntensity >= 0 && data.urgeIntensity <= 10 &&
+             (!('reflectionNotes' in data) || (data.reflectionNotes is string && data.reflectionNotes.size() <= 2000)) &&
+             (!('streakProtected' in data) || data.streakProtected is bool) &&
+             (!('primaryEmotions' in data) || (data.primaryEmotions is list && data.primaryEmotions.size() <= 20)) &&
+             (!('triggersEncountered' in data) || (data.triggersEncountered is list && data.triggersEncountered.size() <= 20));
+    }
+
+    // User Profile: /users/{userId}
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       incoming().userId == userId &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUserProfile(incoming());
+
+      allow delete: if isOwner(userId);
+
+      // Subcollection: /users/{userId}/checkins/{checkInId}
+      match /checkins/{checkInId} {
+        allow get, list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         incoming().userId == userId &&
+                         incoming().createdAt is timestamp &&
+                         incoming().createdAt <= request.time &&
+                         isValidDailyCheckIn(incoming());
+
+        allow update: if isOwner(userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidDailyCheckIn(incoming());
+
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

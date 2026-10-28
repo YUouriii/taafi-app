@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User recovery account profile and streak timestamps",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user identifier"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name or chosen alias"
+        },
+        "cleanSinceTimestamp": {
+          "type": "integer",
+          "description": "Epoch milliseconds timestamp when clean time started"
+        },
+        "longestStreakSeconds": {
+          "type": "integer",
+          "description": "Personal best clean duration in seconds"
+        },
+        "gracePeriodSavesCount": {
+          "type": "integer",
+          "description": "Total times stepped back during 120s grace period"
+        },
+        "sosCompletedCount": {
+          "type": "integer",
+          "description": "Total emergency SOS breathing sessions completed"
+        },
+        "relapsesCount": {
+          "type": "integer",
+          "description": "Total relapses recorded"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": ["userId", "cleanSinceTimestamp", "createdAt"]
+    },
+    "DailyCheckIn": {
+      "title": "DailyCheckIn",
+      "description": "Daily evening mood, urge intensity, and emotional state log for AI insights",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Check-in document ID (e.g. date string YYYY-MM-DD)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user identifier"
+        },
+        "dateString": {
+          "type": "string",
+          "description": "Calendar date string YYYY-MM-DD"
+        },
+        "moodScore": {
+          "type": "integer",
+          "description": "Daily mood rating from 1 (lowest) to 5 (highest)"
+        },
+        "urgeIntensity": {
+          "type": "integer",
+          "description": "Peak urge intensity rating from 0 (none) to 10 (extreme)"
+        },
+        "primaryEmotions": {
+          "type": "array",
+          "description": "List of emotions experienced throughout the day"
+        },
+        "triggersEncountered": {
+          "type": "array",
+          "description": "List of triggers faced (social media, stress, boredom, etc.)"
+        },
+        "reflectionNotes": {
+          "type": "string",
+          "description": "User journal reflection and insights"
+        },
+        "streakProtected": {
+          "type": "boolean",
+          "description": "Whether the user successfully kept streak clean today"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["userId", "dateString", "moodScore", "urgeIntensity", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Individual user recovery profile and cloud-synced streak stats"
+    },
+    "/users/{userId}/checkins/{checkInId}": {
+      "schema": "DailyCheckIn",
+      "description": "User's daily mood and urge logs used for personalized AI counselor insights"
+    }
+  }
+}
