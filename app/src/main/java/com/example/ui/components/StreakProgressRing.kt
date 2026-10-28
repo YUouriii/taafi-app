@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -36,18 +35,21 @@ import androidx.compose.ui.unit.sp
 import com.example.localization.Translations
 import com.example.model.AppLanguage
 import com.example.model.StreakState
-import com.example.ui.theme.AmberGold
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.ElevatedNavy
-import com.example.ui.theme.EmeraldGreen
-import com.example.ui.theme.EmeraldLight
-import com.example.ui.theme.GlassBorderEmerald
-import com.example.ui.theme.GlassBorderSubtle
-import com.example.ui.theme.MidnightNavy
-import com.example.ui.theme.SlateNavy
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.BlackBorder
+import com.example.ui.theme.BlackCard
+import com.example.ui.theme.BlackElevated
+import com.example.ui.theme.BlackSurface
+import com.example.ui.theme.GreenCalm
+import com.example.ui.theme.GreenCalmBorder
+import com.example.ui.theme.GreenCalmContainer
+import com.example.ui.theme.GreenCalmDark
+import com.example.ui.theme.GreenCalmLight
+import com.example.ui.theme.PureBlack
+import com.example.ui.theme.WhiteDim
+import com.example.ui.theme.WhiteGlow
+import com.example.ui.theme.WhiteGlowing
+import com.example.ui.theme.WhiteMuted
+import com.example.ui.theme.WhiteSubtleBorder
 
 @Composable
 fun StreakProgressRing(
@@ -71,27 +73,27 @@ fun StreakProgressRing(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(SlateNavy)
-            .border(1.dp, GlassBorderSubtle, RoundedCornerShape(24.dp))
+            .background(BlackCard)
+            .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(24.dp))
             .padding(22.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Recovery Phase Pill
+        // Recovery Phase Pill with Costume Emoji
         val phase = streakState.recoveryPhase
         val phaseTitle = if (language == AppLanguage.ARABIC) phase.titleAr else phase.titleEn
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
-                .background(EmeraldGreen.copy(alpha = 0.15f))
-                .border(1.dp, GlassBorderEmerald, RoundedCornerShape(50))
+                .background(GreenCalmContainer)
+                .border(1.dp, GreenCalmBorder, RoundedCornerShape(50))
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(text = phase.icon, fontSize = 14.sp)
+            CostumeEmoji(type = phase.costumeType, size = 16.dp, tint = GreenCalmLight)
             Text(
                 text = phaseTitle,
-                color = EmeraldLight,
+                color = GreenCalmLight,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp
@@ -100,7 +102,7 @@ fun StreakProgressRing(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Center Vibrant Progress Circle
+        // Center Vibrant Progress Circle (Black, White Glowing, Green Calm)
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -111,22 +113,22 @@ fun StreakProgressRing(
                 val strokeWidth = 14.dp.toPx()
                 val radius = (size.minDimension - strokeWidth) / 2
 
-                // Outer Background Track
+                // Outer Background Track (Pure Black / Deep)
                 drawCircle(
-                    color = MidnightNavy,
+                    color = BlackBorder,
                     radius = radius,
                     style = Stroke(width = strokeWidth)
                 )
 
-                // Outer Milestone Active Gradient Arc
+                // Outer Milestone Active Gradient Arc (Green Calm & Glowing White)
                 val sweepAngle = animatedProgress * 360f
                 drawArc(
                     brush = Brush.sweepGradient(
                         colors = listOf(
-                            EmeraldGreen,
-                            AmberGold,
-                            CyanAccent,
-                            EmeraldGreen
+                            GreenCalm,
+                            WhiteGlowing,
+                            GreenCalmLight,
+                            GreenCalm
                         )
                     ),
                     startAngle = -90f,
@@ -139,7 +141,7 @@ fun StreakProgressRing(
                 val innerStroke = 6.dp.toPx()
                 val innerRadius = radius - 18.dp.toPx()
                 drawCircle(
-                    color = ElevatedNavy.copy(alpha = 0.5f),
+                    color = BlackElevated,
                     radius = innerRadius,
                     style = Stroke(width = innerStroke)
                 )
@@ -148,9 +150,9 @@ fun StreakProgressRing(
                 drawArc(
                     brush = Brush.sweepGradient(
                         colors = listOf(
-                            AmberGold,
-                            EmeraldGreen,
-                            AmberGold
+                            GreenCalmLight,
+                            GreenCalm,
+                            GreenCalmLight
                         )
                     ),
                     startAngle = -90f,
@@ -169,14 +171,14 @@ fun StreakProgressRing(
                     text = "${streakState.days}",
                     fontSize = 58.sp,
                     fontWeight = FontWeight.Black,
-                    color = TextPrimary,
+                    color = WhiteGlowing,
                     lineHeight = 58.sp
                 )
                 Text(
                     text = Translations.t("days", language).uppercase(),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = EmeraldGreen,
+                    color = GreenCalm,
                     letterSpacing = 2.5.sp
                 )
 
@@ -188,27 +190,27 @@ fun StreakProgressRing(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(MidnightNavy.copy(alpha = 0.8f))
-                        .border(1.dp, GlassBorderSubtle, RoundedCornerShape(50))
+                        .background(PureBlack)
+                        .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(50))
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = String.format("%02d", streakState.hours),
-                        color = TextPrimary,
+                        color = WhiteGlowing,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(text = ":", color = AmberGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = ":", color = GreenCalmLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text(
                         text = String.format("%02d", streakState.minutes),
-                        color = TextPrimary,
+                        color = WhiteGlowing,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(text = ":", color = AmberGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = ":", color = GreenCalmLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text(
                         text = String.format("%02d", streakState.seconds),
-                        color = EmeraldLight,
+                        color = GreenCalmLight,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -223,8 +225,8 @@ fun StreakProgressRing(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(ElevatedNavy)
-                .border(1.dp, GlassBorderSubtle, RoundedCornerShape(16.dp))
+                .background(BlackElevated)
+                .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(16.dp))
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -232,14 +234,14 @@ fun StreakProgressRing(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = Translations.t("dopamine_score", language),
-                    color = TextSecondary,
+                    color = WhiteDim,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "${streakState.dopamineRecoveryScore}%",
-                    color = AmberGold,
+                    color = WhiteGlowing,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
@@ -248,7 +250,7 @@ fun StreakProgressRing(
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = "${Translations.t("next_milestone", language)}: ${streakState.nextMilestoneDays} ${Translations.t("days", language)}",
-                    color = EmeraldLight,
+                    color = GreenCalmLight,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -256,7 +258,7 @@ fun StreakProgressRing(
                 Text(
                     text = "${(streakState.milestoneProgress * 100).toInt()}% " +
                             if (language == AppLanguage.ARABIC) "مكتمل" else "Complete",
-                    color = TextMuted,
+                    color = WhiteMuted,
                     fontSize = 11.sp
                 )
             }

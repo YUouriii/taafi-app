@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -48,14 +47,18 @@ import androidx.compose.ui.unit.sp
 import com.example.localization.Translations
 import com.example.model.AppLanguage
 import com.example.model.GracePeriodState
-import com.example.ui.theme.AmberAlert
-import com.example.ui.theme.EmeraldLight
-import com.example.ui.theme.EmeraldPrimary
-import com.example.ui.theme.OnEmerald
-import com.example.ui.theme.RoseWarning
-import com.example.ui.theme.RoseWarningDark
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.BlackBorder
+import com.example.ui.theme.BlackCard
+import com.example.ui.theme.BlackElevated
+import com.example.ui.theme.GreenCalm
+import com.example.ui.theme.GreenCalmLight
+import com.example.ui.theme.OnGreenCalm
+import com.example.ui.theme.PureBlack
+import com.example.ui.theme.WhiteDim
+import com.example.ui.theme.WhiteGlow
+import com.example.ui.theme.WhiteGlowBorder
+import com.example.ui.theme.WhiteGlowing
+import com.example.ui.theme.WhiteSubtleBorder
 
 @Composable
 fun GracePeriodOverlay(
@@ -72,8 +75,8 @@ fun GracePeriodOverlay(
     ) {
         val infiniteTransition = rememberInfiniteTransition(label = "pulse")
         val pulseAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.4f,
-            targetValue = 0.9f,
+            initialValue = 0.5f,
+            targetValue = 1.0f,
             animationSpec = infiniteRepeatable(
                 animation = tween(800),
                 repeatMode = RepeatMode.Reverse
@@ -85,26 +88,26 @@ fun GracePeriodOverlay(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .shadow(16.dp, RoundedCornerShape(20.dp))
+                .shadow(20.dp, RoundedCornerShape(20.dp), spotColor = WhiteGlowing)
                 .clip(RoundedCornerShape(20.dp))
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            RoseWarningDark,
-                            Color(0xFF1E0A16)
+                            BlackElevated,
+                            PureBlack
                         )
                     )
                 )
                 .border(
                     2.dp,
-                    RoseWarning.copy(alpha = pulseAlpha),
+                    WhiteGlowing.copy(alpha = pulseAlpha),
                     RoundedCornerShape(20.dp)
                 )
                 .padding(18.dp)
                 .testTag("grace_period_overlay")
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // Header with Pulsing Warning Icon
+                // Header with Pulsing Warning Costume Badge
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -112,65 +115,58 @@ fun GracePeriodOverlay(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(RoseWarning.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = "Warning",
-                                tint = RoseWarning,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        CostumeBadge(
+                            type = CostumeIconType.TIMER,
+                            size = 38.dp,
+                            isGlowing = true,
+                            isCalmGreen = false
+                        )
                         Text(
                             text = Translations.t("grace_banner_title", language),
-                            color = Color.White,
+                            color = WhiteGlowing,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    // Countdown Timer Pill
+                    // Countdown Timer Pill (Glowing White on Black)
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(RoseWarning)
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .background(WhiteGlowing)
+                            .shadow(8.dp, RoundedCornerShape(50))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
                             text = gracePeriodState.formattedTime,
-                            color = Color.White,
+                            color = PureBlack,
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontWeight = FontWeight.Black,
                             modifier = Modifier.testTag("grace_countdown_timer")
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // Progress Bar
+                // Progress Bar (Glowing White on Dark Track)
                 LinearProgressIndicator(
                     progress = { gracePeriodState.progress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp)),
-                    color = RoseWarning,
-                    trackColor = Color(0xFF4C0519)
+                    color = WhiteGlowing,
+                    trackColor = BlackBorder
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = Translations.t("grace_banner_desc", language),
-                    color = TextPrimary.copy(alpha = 0.9f),
+                    color = WhiteDim,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     textAlign = TextAlign.Start
@@ -180,7 +176,7 @@ fun GracePeriodOverlay(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "${Translations.t("grace_detected_target", language)}: ${gracePeriodState.detectedTarget}",
-                        color = AmberAlert,
+                        color = GreenCalmLight,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -188,12 +184,12 @@ fun GracePeriodOverlay(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Action Button: Step Back to Protect Streak
+                // Action Button: Step Back to Protect Streak (Green Calm)
                 Button(
                     onClick = onStepBackClicked,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EmeraldPrimary,
-                        contentColor = OnEmerald
+                        containerColor = GreenCalm,
+                        contentColor = OnGreenCalm
                     ),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier

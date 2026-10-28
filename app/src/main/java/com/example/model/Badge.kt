@@ -1,12 +1,15 @@
 package com.example.model
 
+import com.example.ui.components.CostumeIconType
+
 data class Badge(
     val id: String,
     val titleEn: String,
     val titleAr: String,
     val descriptionEn: String,
     val descriptionAr: String,
-    val iconEmoji: String,
+    val iconEmoji: String = "",
+    val costumeType: CostumeIconType = CostumeIconType.SPROUT,
     val requiredDays: Int = 0,
     val isSpecial: Boolean = false,
     val unlocked: Boolean = false
@@ -22,6 +25,7 @@ object BadgesRepository {
                 descriptionEn = "Completed 24 clean hours. The journey of freedom begins.",
                 descriptionAr = "إتمام 24 ساعة نقية. رحلة الحرية قد بدأت.",
                 iconEmoji = "🔥",
+                costumeType = CostumeIconType.FLAME,
                 requiredDays = 1,
                 unlocked = streakDays >= 1
             ),
@@ -32,6 +36,7 @@ object BadgesRepository {
                 descriptionEn = "3 days clean. Brain fog begins to lift.",
                 descriptionAr = "3 أيام من النقاء. ضباب الدماغ يبدأ في التلاشي.",
                 iconEmoji = "🌅",
+                costumeType = CostumeIconType.SUNRISE,
                 requiredDays = 3,
                 unlocked = streakDays >= 3
             ),
@@ -42,6 +47,7 @@ object BadgesRepository {
                 descriptionEn = "7 days clean! Peak acute withdrawal conquered.",
                 descriptionAr = "7 أيام نقية! تجاوز ذروة الانسحاب الحاد بنجاح.",
                 iconEmoji = "🏰",
+                costumeType = CostumeIconType.FORTRESS,
                 requiredDays = 7,
                 unlocked = streakDays >= 7
             ),
@@ -52,6 +58,7 @@ object BadgesRepository {
                 descriptionEn = "14 days clean. Dopamine receptors multiplying.",
                 descriptionAr = "14 يوماً من النقاء. مستقبلات الدوبامين تتضاعف وتتعافى.",
                 iconEmoji = "🧠",
+                costumeType = CostumeIconType.BRAIN,
                 requiredDays = 14,
                 unlocked = streakDays >= 14
             ),
@@ -62,6 +69,7 @@ object BadgesRepository {
                 descriptionEn = "30 days of unyielding discipline and self-mastery.",
                 descriptionAr = "30 يوماً من الانضباط الراسخ والتحكم بالذات.",
                 iconEmoji = "🛡️",
+                costumeType = CostumeIconType.SHIELD,
                 requiredDays = 30,
                 unlocked = streakDays >= 30
             ),
@@ -72,6 +80,7 @@ object BadgesRepository {
                 descriptionEn = "60 days of transformation. New identity cemented.",
                 descriptionAr = "60 يوماً من التحول الحقيقي. ترسيخ الهوية الجديدة.",
                 iconEmoji = "⚡",
+                costumeType = CostumeIconType.LIGHTNING,
                 requiredDays = 60,
                 unlocked = streakDays >= 60
             ),
@@ -82,6 +91,7 @@ object BadgesRepository {
                 descriptionEn = "90 days milestone! Full neural baseline restoration.",
                 descriptionAr = "إنجاز 90 يوماً! استعادة التوازن الكيميائي الدماغي الكامل.",
                 iconEmoji = "👑",
+                costumeType = CostumeIconType.CROWN,
                 requiredDays = 90,
                 unlocked = streakDays >= 90
             ),
@@ -92,6 +102,7 @@ object BadgesRepository {
                 descriptionEn = "Defeated urge in the 120s Grace Period and stepped back.",
                 descriptionAr = "الانتصار على الرغبة والتراجع الواعي خلال فترة السماح 120 ثانية.",
                 iconEmoji = "⏳",
+                costumeType = CostumeIconType.TIMER,
                 isSpecial = true,
                 unlocked = graceSaves >= 1
             ),
@@ -102,6 +113,7 @@ object BadgesRepository {
                 descriptionEn = "Successfully grounded mind through SOS breathing session.",
                 descriptionAr = "تهدئة الجهاز العصبي والرسو في السكينة عبر تمرين SOS.",
                 iconEmoji = "🌊",
+                costumeType = CostumeIconType.WAVE,
                 isSpecial = true,
                 unlocked = sosCompleted >= 1
             )

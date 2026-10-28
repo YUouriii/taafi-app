@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.ui.components.CostumeIconType
+
 data class CommunityPost(
     val id: String,
     val authorAlias: String,
@@ -16,11 +18,12 @@ data class CommunityPost(
 enum class CommunityCategory(
     val titleEn: String,
     val titleAr: String,
-    val emoji: String
+    val emoji: String,
+    val costumeType: CostumeIconType
 ) {
-    ALL("All", "الكل", "🌐"),
-    MILESTONES("Milestones", "إنجازات", "🏆"),
-    URGE_SURFING("Urge Surfing", "مواجهة الرغبات", "🌊"),
-    DAILY_MOTIVATION("Daily Fuel", "تحفيز يومي", "🔥"),
-    GRACE_VICTORIES("Grace Victories", "انتصارات الوعي", "⏳")
+    ALL("All", "الكل", "🌐", CostumeIconType.COMMUNITY),
+    MILESTONES("Milestones", "إنجازات", "🏆", CostumeIconType.TROPHY),
+    URGE_SURFING("Urge Surfing", "مواجهة الرغبات", "🌊", CostumeIconType.WAVE),
+    DAILY_MOTIVATION("Daily Fuel", "تحفيز يومي", "🔥", CostumeIconType.FLAME),
+    GRACE_VICTORIES("Grace Victories", "انتصارات الوعي", "⏳", CostumeIconType.TIMER)
 }

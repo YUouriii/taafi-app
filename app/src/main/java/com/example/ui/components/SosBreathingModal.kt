@@ -25,7 +25,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -60,18 +59,22 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.localization.Translations
 import com.example.model.AppLanguage
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.DarkNavyBackground
-import com.example.ui.theme.EmeraldLight
-import com.example.ui.theme.EmeraldPrimary
-import com.example.ui.theme.NavyBorder
-import com.example.ui.theme.NavySurface
-import com.example.ui.theme.NavySurfaceVariant
-import com.example.ui.theme.OnEmerald
-import com.example.ui.theme.RoseWarning
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.BlackBorder
+import com.example.ui.theme.BlackCard
+import com.example.ui.theme.BlackElevated
+import com.example.ui.theme.GreenCalm
+import com.example.ui.theme.GreenCalmBorder
+import com.example.ui.theme.GreenCalmDark
+import com.example.ui.theme.GreenCalmGlow
+import com.example.ui.theme.GreenCalmLight
+import com.example.ui.theme.OnGreenCalm
+import com.example.ui.theme.PureBlack
+import com.example.ui.theme.WhiteDim
+import com.example.ui.theme.WhiteGlow
+import com.example.ui.theme.WhiteGlowBorder
+import com.example.ui.theme.WhiteGlowing
+import com.example.ui.theme.WhiteMuted
+import com.example.ui.theme.WhiteSubtleBorder
 import kotlinx.coroutines.delay
 
 enum class BreathPhase {
@@ -96,7 +99,7 @@ fun SosBreathingModal(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkNavyBackground.copy(alpha = 0.98f))
+                .background(PureBlack)
                 .padding(16.dp)
                 .testTag("sos_breathing_modal")
         ) {
@@ -116,20 +119,17 @@ fun SosBreathingModal(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(RoseWarning.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = "🚨", fontSize = 18.sp)
-                        }
+                        CostumeBadge(
+                            type = CostumeIconType.ALERT,
+                            size = 36.dp,
+                            isGlowing = true,
+                            isCalmGreen = false
+                        )
                         Text(
                             text = Translations.t("sos_modal_title", language),
-                            color = TextPrimary,
+                            color = WhiteGlowing,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -142,7 +142,7 @@ fun SosBreathingModal(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextSecondary
+                            tint = WhiteDim
                         )
                     }
                 }
@@ -150,17 +150,18 @@ fun SosBreathingModal(
                 // Tabs: 4-7-8 Breathing, 5-4-3-2-1 Grounding, Urge Surfing Rules
                 TabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor = NavySurface,
-                    contentColor = EmeraldPrimary,
+                    containerColor = BlackCard,
+                    contentColor = GreenCalm,
                     indicator = { tabPositions ->
                         TabRowDefaults.SecondaryIndicator(
                             Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = EmeraldPrimary
+                            color = GreenCalm
                         )
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(14.dp))
                 ) {
                     Tab(
                         selected = selectedTab == 0,
@@ -169,7 +170,8 @@ fun SosBreathingModal(
                             Text(
                                 text = Translations.t("sos_breathing_tab", language),
                                 fontSize = 12.sp,
-                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selectedTab == 0) GreenCalmLight else WhiteDim
                             )
                         }
                     )
@@ -180,7 +182,8 @@ fun SosBreathingModal(
                             Text(
                                 text = Translations.t("sos_grounding_tab", language),
                                 fontSize = 12.sp,
-                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selectedTab == 1) GreenCalmLight else WhiteDim
                             )
                         }
                     )
@@ -191,7 +194,8 @@ fun SosBreathingModal(
                             Text(
                                 text = Translations.t("sos_rules_tab", language),
                                 fontSize = 12.sp,
-                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selectedTab == 2) GreenCalmLight else WhiteDim
                             )
                         }
                     )
@@ -211,8 +215,8 @@ fun SosBreathingModal(
                 Button(
                     onClick = onComplete,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EmeraldPrimary,
-                        contentColor = OnEmerald
+                        containerColor = GreenCalm,
+                        contentColor = OnGreenCalm
                     ),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
@@ -281,14 +285,14 @@ private fun BreathingCycleView(language: AppLanguage) {
     ) {
         Text(
             text = "${Translations.t("cycle", language)} $cycleCount",
-            color = CyanAccent,
+            color = GreenCalmLight,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Expanding breathing orb
+        // Expanding breathing orb (3 colors: Black, White Glowing, Green Calm)
         Box(
             modifier = Modifier
                 .size(240.dp)
@@ -302,9 +306,9 @@ private fun BreathingCycleView(language: AppLanguage) {
                     .clip(CircleShape)
                     .background(
                         when (phase) {
-                            BreathPhase.INHALE -> EmeraldPrimary.copy(alpha = 0.25f)
-                            BreathPhase.HOLD -> CyanAccent.copy(alpha = 0.25f)
-                            BreathPhase.EXHALE -> Color(0xFF6366F1).copy(alpha = 0.2f)
+                            BreathPhase.INHALE -> GreenCalm.copy(alpha = 0.25f)
+                            BreathPhase.HOLD -> WhiteGlowing.copy(alpha = 0.2f)
+                            BreathPhase.EXHALE -> GreenCalmDark.copy(alpha = 0.35f)
                         }
                     )
             )
@@ -317,19 +321,24 @@ private fun BreathingCycleView(language: AppLanguage) {
                     .background(
                         Brush.radialGradient(
                             colors = when (phase) {
-                                BreathPhase.INHALE -> listOf(EmeraldLight, EmeraldPrimary, Color(0xFF064E3B))
-                                BreathPhase.HOLD -> listOf(Color(0xFF67E8F9), CyanAccent, Color(0xFF083344))
-                                BreathPhase.EXHALE -> listOf(Color(0xFFA5B4FC), Color(0xFF6366F1), Color(0xFF1E1B4B))
+                                BreathPhase.INHALE -> listOf(GreenCalmLight, GreenCalm, GreenCalmDark)
+                                BreathPhase.HOLD -> listOf(WhiteGlowing, Color(0xAAFFFFFF), PureBlack)
+                                BreathPhase.EXHALE -> listOf(GreenCalm, GreenCalmDark, PureBlack)
                             }
                         )
                     )
-                    .shadow(16.dp, CircleShape),
+                    .border(
+                        2.dp,
+                        if (phase == BreathPhase.HOLD) WhiteGlowing else GreenCalmBorder,
+                        CircleShape
+                    )
+                    .shadow(16.dp, CircleShape, spotColor = if (phase == BreathPhase.HOLD) WhiteGlowing else GreenCalm),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = "$countdownInPhase",
-                        color = Color.White,
+                        color = if (phase == BreathPhase.HOLD) PureBlack else WhiteGlowing,
                         fontSize = 44.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
@@ -347,7 +356,7 @@ private fun BreathingCycleView(language: AppLanguage) {
 
         Text(
             text = phaseText,
-            color = TextPrimary,
+            color = WhiteGlowing,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
@@ -360,7 +369,7 @@ private fun BreathingCycleView(language: AppLanguage) {
                 "يخفض ضغط الدم ويعيد توازن الجهاز العصبي السمبثاوي خلال 2-3 دورات."
             else
                 "Slows heart rate & stimulates parasympathetic relaxation within 2-3 cycles.",
-            color = TextSecondary,
+            color = WhiteDim,
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp)
@@ -371,47 +380,38 @@ private fun BreathingCycleView(language: AppLanguage) {
 @Composable
 private fun GroundingTechniquesView(language: AppLanguage) {
     val steps = listOf(
-        Translations.t("grounding_step5", language),
-        Translations.t("grounding_step4", language),
-        Translations.t("grounding_step3", language),
-        Translations.t("grounding_step2", language),
-        Translations.t("grounding_step1", language)
+        Pair(CostumeIconType.SENSE_VISION, Translations.t("grounding_step5", language)),
+        Pair(CostumeIconType.SENSE_TOUCH, Translations.t("grounding_step4", language)),
+        Pair(CostumeIconType.SENSE_HEARING, Translations.t("grounding_step3", language)),
+        Pair(CostumeIconType.SENSE_SCENT, Translations.t("grounding_step2", language)),
+        Pair(CostumeIconType.SENSE_SIP, Translations.t("grounding_step1", language))
     )
 
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        steps.forEachIndexed { index, step ->
+        steps.forEachIndexed { index, (costume, step) ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = NavySurface),
+                colors = CardDefaults.cardColors(containerColor = BlackCard),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, NavyBorder, RoundedCornerShape(16.dp))
+                    .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(16.dp))
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(EmeraldPrimary.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "${5 - index}",
-                            color = EmeraldLight,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    CostumeBadge(
+                        type = costume,
+                        size = 34.dp,
+                        isCalmGreen = true
+                    )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = step,
-                        color = TextPrimary,
+                        color = WhiteGlowing,
                         fontSize = 13.sp,
                         lineHeight = 18.sp
                     )
@@ -428,24 +428,34 @@ private fun UrgeSurfingRulesView(language: AppLanguage) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = NavySurface),
+            colors = CardDefaults.cardColors(containerColor = BlackCard),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, NavyBorder, RoundedCornerShape(16.dp))
+                .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(16.dp))
                 .padding(4.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "🌊 " + Translations.t("rule_15min_title", language),
-                    color = CyanAccent,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CostumeBadge(
+                        type = CostumeIconType.WAVE,
+                        size = 30.dp,
+                        isCalmGreen = true
+                    )
+                    Text(
+                        text = Translations.t("rule_15min_title", language),
+                        color = WhiteGlowing,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = Translations.t("rule_15min_desc", language),
-                    color = TextSecondary,
+                    color = WhiteDim,
                     fontSize = 13.sp,
                     lineHeight = 19.sp
                 )
@@ -453,24 +463,34 @@ private fun UrgeSurfingRulesView(language: AppLanguage) {
         }
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = NavySurface),
+            colors = CardDefaults.cardColors(containerColor = BlackCard),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, NavyBorder, RoundedCornerShape(16.dp))
+                .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(16.dp))
                 .padding(4.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "❄️ " + Translations.t("rule_cold_water", language),
-                    color = EmeraldLight,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CostumeBadge(
+                        type = CostumeIconType.WATER,
+                        size = 30.dp,
+                        isCalmGreen = true
+                    )
+                    Text(
+                        text = Translations.t("rule_cold_water", language),
+                        color = GreenCalmLight,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = Translations.t("rule_cold_desc", language),
-                    color = TextSecondary,
+                    color = WhiteDim,
                     fontSize = 13.sp,
                     lineHeight = 19.sp
                 )

@@ -18,10 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,18 +37,19 @@ import androidx.compose.ui.unit.sp
 import com.example.localization.Translations
 import com.example.model.AppLanguage
 import com.example.model.DailyCheckIn
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.ElevatedNavy
-import com.example.ui.theme.EmeraldContainer
-import com.example.ui.theme.EmeraldGreen
-import com.example.ui.theme.EmeraldLight
-import com.example.ui.theme.GlassBorderSubtle
-import com.example.ui.theme.OnEmerald
-import com.example.ui.theme.RoseWarning
-import com.example.ui.theme.SlateNavy
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.BlackCard
+import com.example.ui.theme.BlackElevated
+import com.example.ui.theme.GreenCalm
+import com.example.ui.theme.GreenCalmBorder
+import com.example.ui.theme.GreenCalmContainer
+import com.example.ui.theme.GreenCalmLight
+import com.example.ui.theme.OnGreenCalm
+import com.example.ui.theme.PureBlack
+import com.example.ui.theme.WhiteDim
+import com.example.ui.theme.WhiteGlowBorder
+import com.example.ui.theme.WhiteGlowing
+import com.example.ui.theme.WhiteMuted
+import com.example.ui.theme.WhiteSubtleBorder
 
 @Composable
 fun DailyCheckInProgressCard(
@@ -62,11 +60,11 @@ fun DailyCheckInProgressCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = SlateNavy),
+        colors = CardDefaults.cardColors(containerColor = BlackCard),
         shape = RoundedCornerShape(22.dp),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, GlassBorderSubtle, RoundedCornerShape(22.dp))
+            .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(22.dp))
             .testTag("daily_checkin_progress_card")
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -80,26 +78,22 @@ fun DailyCheckInProgressCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(CyanAccent.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "📊", fontSize = 18.sp)
-                    }
+                    CostumeBadge(
+                        type = CostumeIconType.CHART,
+                        size = 38.dp,
+                        isCalmGreen = true
+                    )
 
                     Column {
                         Text(
                             text = Translations.t("daily_checkin_title", language),
-                            color = TextPrimary,
+                            color = WhiteGlowing,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Text(
                             text = Translations.t("daily_checkin_subtitle", language),
-                            color = TextSecondary,
+                            color = WhiteDim,
                             fontSize = 11.sp
                         )
                     }
@@ -114,27 +108,31 @@ fun DailyCheckInProgressCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(EmeraldContainer.copy(alpha = 0.6f))
-                        .border(1.dp, EmeraldGreen.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .background(GreenCalmContainer)
+                        .border(1.dp, GreenCalmBorder, RoundedCornerShape(14.dp))
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(text = todayCheckIn.moodEmoji, fontSize = 24.sp)
+                        CostumeBadge(
+                            type = todayCheckIn.moodCostumeType,
+                            size = 36.dp,
+                            isCalmGreen = true
+                        )
                         Column {
                             Text(
                                 text = if (language == AppLanguage.ARABIC) "تم تسجيل مراجعة اليوم بنجاح" else "Today's check-in logged!",
-                                color = EmeraldLight,
+                                color = GreenCalmLight,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
                             Text(
                                 text = "${if (language == AppLanguage.ARABIC) "شدة الرغبة" else "Peak Urge"}: ${todayCheckIn.urgeIntensity}/10 • ${todayCheckIn.primaryEmotions.take(2).joinToString()}",
-                                color = TextPrimary.copy(alpha = 0.8f),
+                                color = WhiteGlowing.copy(alpha = 0.85f),
                                 fontSize = 11.sp
                             )
                         }
@@ -143,8 +141,8 @@ fun DailyCheckInProgressCard(
                     Button(
                         onClick = onOpenCheckInDialog,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = EmeraldGreen,
-                            contentColor = OnEmerald
+                            containerColor = GreenCalm,
+                            contentColor = OnGreenCalm
                         ),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.testTag("update_checkin_button")
@@ -156,8 +154,8 @@ fun DailyCheckInProgressCard(
                 Button(
                     onClick = onOpenCheckInDialog,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = CyanAccent,
-                        contentColor = Color(0xFF00363D)
+                        containerColor = GreenCalm,
+                        contentColor = OnGreenCalm
                     ),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
@@ -181,7 +179,7 @@ fun DailyCheckInProgressCard(
 
                 Text(
                     text = Translations.t("recent_logs_title", language),
-                    color = TextPrimary,
+                    color = WhiteGlowing,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -207,24 +205,28 @@ private fun RecentCheckInPill(
     language: AppLanguage
 ) {
     val isAr = language == AppLanguage.ARABIC
-    val urgeColor = Color(log.urgeColorHex)
+    val urgeColor = if (log.urgeIntensity >= 5) WhiteGlowing else GreenCalmLight
 
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(ElevatedNavy)
-            .border(1.dp, GlassBorderSubtle, RoundedCornerShape(14.dp))
+            .background(BlackElevated)
+            .border(1.dp, WhiteSubtleBorder, RoundedCornerShape(14.dp))
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(text = log.moodEmoji, fontSize = 16.sp)
+            CostumeEmoji(
+                type = log.moodCostumeType,
+                size = 18.dp,
+                tint = GreenCalmLight
+            )
             Column {
                 Text(
                     text = log.dateString.substringAfter("-"),
-                    color = TextPrimary,
+                    color = WhiteGlowing,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )

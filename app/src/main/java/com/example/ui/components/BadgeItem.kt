@@ -26,13 +26,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
 import com.example.model.Badge
-import com.example.ui.theme.EmeraldLight
-import com.example.ui.theme.EmeraldPrimary
-import com.example.ui.theme.NavyBorder
-import com.example.ui.theme.NavySurface
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.BlackCard
+import com.example.ui.theme.BlackElevated
+import com.example.ui.theme.GreenCalm
+import com.example.ui.theme.GreenCalmBorder
+import com.example.ui.theme.GreenCalmLight
+import com.example.ui.theme.PureBlack
+import com.example.ui.theme.WhiteDim
+import com.example.ui.theme.WhiteGlowing
+import com.example.ui.theme.WhiteMuted
+import com.example.ui.theme.WhiteSubtleBorder
 
 @Composable
 fun BadgeItem(
@@ -47,10 +50,10 @@ fun BadgeItem(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (badge.unlocked) NavySurface else Color(0xFF0D152D))
+            .background(if (badge.unlocked) BlackCard else BlackElevated)
             .border(
                 1.dp,
-                if (badge.unlocked) EmeraldPrimary.copy(alpha = 0.4f) else NavyBorder.copy(alpha = 0.3f),
+                if (badge.unlocked) GreenCalmBorder else WhiteSubtleBorder.copy(alpha = 0.5f),
                 RoundedCornerShape(16.dp)
             )
             .padding(14.dp)
@@ -58,25 +61,12 @@ fun BadgeItem(
             .testTag("badge_item_${badge.id}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(CircleShape)
-                .background(
-                    if (badge.unlocked) EmeraldPrimary.copy(alpha = 0.15f) else Color(0xFF131D3B)
-                )
-                .border(
-                    1.dp,
-                    if (badge.unlocked) EmeraldPrimary.copy(alpha = 0.3f) else Color.Transparent,
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = if (badge.unlocked) badge.iconEmoji else "🔒",
-                fontSize = 22.sp
-            )
-        }
+        CostumeBadge(
+            type = if (badge.unlocked) badge.costumeType else CostumeIconType.LOCKED,
+            size = 46.dp,
+            isCalmGreen = badge.unlocked,
+            isGlowing = badge.unlocked
+        )
 
         Spacer(modifier = Modifier.width(14.dp))
 
@@ -86,13 +76,13 @@ fun BadgeItem(
             ) {
                 Text(
                     text = title,
-                    color = if (badge.unlocked) TextPrimary else TextSecondary,
+                    color = if (badge.unlocked) WhiteGlowing else WhiteDim,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
                 if (badge.unlocked) {
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "✓", color = EmeraldLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "✓", color = GreenCalmLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -100,7 +90,7 @@ fun BadgeItem(
 
             Text(
                 text = desc,
-                color = TextMuted,
+                color = WhiteMuted,
                 fontSize = 11.sp,
                 lineHeight = 15.sp
             )

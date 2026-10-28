@@ -22,11 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,7 +33,6 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -58,19 +54,22 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.localization.Translations
 import com.example.model.AppLanguage
 import com.example.model.DailyCheckIn
-import com.example.ui.theme.AmberAlert
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.DarkNavyBackground
-import com.example.ui.theme.EmeraldLight
-import com.example.ui.theme.EmeraldPrimary
-import com.example.ui.theme.NavyBorder
-import com.example.ui.theme.NavySurface
-import com.example.ui.theme.NavySurfaceVariant
-import com.example.ui.theme.OnEmerald
-import com.example.ui.theme.RoseWarning
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.BlackBorder
+import com.example.ui.theme.BlackCard
+import com.example.ui.theme.BlackElevated
+import com.example.ui.theme.GreenCalm
+import com.example.ui.theme.GreenCalmBorder
+import com.example.ui.theme.GreenCalmContainer
+import com.example.ui.theme.GreenCalmDark
+import com.example.ui.theme.GreenCalmLight
+import com.example.ui.theme.OnGreenCalm
+import com.example.ui.theme.PureBlack
+import com.example.ui.theme.WhiteDim
+import com.example.ui.theme.WhiteGlow
+import com.example.ui.theme.WhiteGlowBorder
+import com.example.ui.theme.WhiteGlowing
+import com.example.ui.theme.WhiteMuted
+import com.example.ui.theme.WhiteSubtleBorder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -117,12 +116,13 @@ fun DailyCheckInDialog(
         listOf("Late Night", "Social Media", "Work Stress", "Boredom", "Isolation", "Conflicts", "None")
     }
 
+    // Custom Costume Emojis for 1-5 Moods
     val moods = listOf(
-        Pair(1, "😞"),
-        Pair(2, "😟"),
-        Pair(3, "😐"),
-        Pair(4, "🙂"),
-        Pair(5, "🔥")
+        Pair(1, CostumeIconType.MOOD_1),
+        Pair(2, CostumeIconType.MOOD_2),
+        Pair(3, CostumeIconType.MOOD_3),
+        Pair(4, CostumeIconType.MOOD_4),
+        Pair(5, CostumeIconType.MOOD_5)
     )
 
     Dialog(
@@ -133,8 +133,8 @@ fun DailyCheckInDialog(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .clip(RoundedCornerShape(24.dp))
-                .background(NavySurface)
-                .border(1.dp, EmeraldPrimary.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
+                .background(BlackCard)
+                .border(1.dp, GreenCalmBorder, RoundedCornerShape(24.dp))
                 .padding(20.dp)
                 .testTag("daily_checkin_dialog")
         ) {
@@ -152,29 +152,29 @@ fun DailyCheckInDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = Translations.t("daily_checkin_title", language),
-                            color = TextPrimary,
+                            color = WhiteGlowing,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp
                         )
                         Text(
                             text = todayDateString,
-                            color = CyanAccent,
+                            color = GreenCalmLight,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
 
                     IconButton(onClick = onDismiss) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = WhiteDim)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 1. Mood Selection
+                // 1. Mood Selection with Costume Emojis
                 Text(
                     text = Translations.t("mood_question", language),
-                    color = TextPrimary,
+                    color = WhiteGlowing,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -185,37 +185,36 @@ fun DailyCheckInDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    moods.forEach { (score, emoji) ->
+                    moods.forEach { (score, costume) ->
                         val isSelected = moodScore == score
                         Box(
                             modifier = Modifier
-                                .size(50.dp)
+                                .size(52.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.25f) else NavySurfaceVariant)
+                                .background(if (isSelected) GreenCalmContainer else BlackElevated)
                                 .border(
                                     1.dp,
-                                    if (isSelected) EmeraldPrimary else NavyBorder,
+                                    if (isSelected) GreenCalm else WhiteSubtleBorder,
                                     RoundedCornerShape(14.dp)
                                 )
                                 .clickable { moodScore = score }
                                 .testTag("mood_option_$score"),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(text = emoji, fontSize = 24.sp)
+                            CostumeEmoji(
+                                type = costume,
+                                size = 26.dp,
+                                tint = if (isSelected) GreenCalmLight else WhiteDim
+                            )
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // 2. Urge Intensity Slider
+                // 2. Urge Intensity Slider (Strictly Black, White Glowing, Green Calm)
                 val urgeInt = urgeFloat.toInt()
-                val urgeColor = when {
-                    urgeInt >= 7 -> RoseWarning
-                    urgeInt >= 4 -> AmberAlert
-                    urgeInt >= 1 -> CyanAccent
-                    else -> EmeraldLight
-                }
+                val urgeColor = if (urgeInt >= 5) WhiteGlowing else GreenCalmLight
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -224,14 +223,15 @@ fun DailyCheckInDialog(
                 ) {
                     Text(
                         text = Translations.t("urge_question", language),
-                        color = TextPrimary,
+                        color = WhiteGlowing,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(urgeColor.copy(alpha = 0.2f))
+                            .background(if (urgeInt >= 5) Color(0x33FFFFFF) else GreenCalmContainer)
+                            .border(1.dp, if (urgeInt >= 5) WhiteGlowBorder else GreenCalmBorder, RoundedCornerShape(50))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -251,7 +251,7 @@ fun DailyCheckInDialog(
                     colors = SliderDefaults.colors(
                         thumbColor = urgeColor,
                         activeTrackColor = urgeColor,
-                        inactiveTrackColor = Color(0xFF1E2B54)
+                        inactiveTrackColor = BlackBorder
                     ),
                     modifier = Modifier.testTag("urge_intensity_slider")
                 )
@@ -261,7 +261,7 @@ fun DailyCheckInDialog(
                 // 3. Primary Emotions
                 Text(
                     text = Translations.t("emotions_label", language),
-                    color = TextPrimary,
+                    color = WhiteGlowing,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -277,8 +277,8 @@ fun DailyCheckInDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(if (isSelected) CyanAccent.copy(alpha = 0.25f) else NavySurfaceVariant)
-                                .border(1.dp, if (isSelected) CyanAccent else NavyBorder, RoundedCornerShape(50))
+                                .background(if (isSelected) GreenCalmContainer else BlackElevated)
+                                .border(1.dp, if (isSelected) GreenCalm else WhiteSubtleBorder, RoundedCornerShape(50))
                                 .clickable {
                                     if (isSelected) selectedEmotions.remove(emotion)
                                     else selectedEmotions.add(emotion)
@@ -287,7 +287,7 @@ fun DailyCheckInDialog(
                         ) {
                             Text(
                                 text = emotion,
-                                color = if (isSelected) Color.White else TextSecondary,
+                                color = if (isSelected) WhiteGlowing else WhiteDim,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
@@ -300,7 +300,7 @@ fun DailyCheckInDialog(
                 // 4. Triggers Encountered
                 Text(
                     text = Translations.t("triggers_label", language),
-                    color = TextPrimary,
+                    color = WhiteGlowing,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -316,8 +316,8 @@ fun DailyCheckInDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(if (isSelected) RoseWarning.copy(alpha = 0.2f) else NavySurfaceVariant)
-                                .border(1.dp, if (isSelected) RoseWarning else NavyBorder, RoundedCornerShape(50))
+                                .background(if (isSelected) Color(0x33FFFFFF) else BlackElevated)
+                                .border(1.dp, if (isSelected) WhiteGlowBorder else WhiteSubtleBorder, RoundedCornerShape(50))
                                 .clickable {
                                     if (isSelected) selectedTriggers.remove(trigger)
                                     else selectedTriggers.add(trigger)
@@ -326,7 +326,7 @@ fun DailyCheckInDialog(
                         ) {
                             Text(
                                 text = trigger,
-                                color = if (isSelected) Color.White else TextSecondary,
+                                color = if (isSelected) WhiteGlowing else WhiteDim,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
@@ -339,7 +339,7 @@ fun DailyCheckInDialog(
                 // 5. Reflection Notes
                 Text(
                     text = Translations.t("reflection_label", language),
-                    color = TextPrimary,
+                    color = WhiteGlowing,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -352,15 +352,15 @@ fun DailyCheckInDialog(
                     placeholder = {
                         Text(
                             text = Translations.t("reflection_placeholder", language),
-                            color = TextMuted,
+                            color = WhiteMuted,
                             fontSize = 12.sp
                         )
                     },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EmeraldPrimary,
-                        unfocusedBorderColor = NavyBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
+                        focusedBorderColor = GreenCalm,
+                        unfocusedBorderColor = WhiteSubtleBorder,
+                        focusedTextColor = WhiteGlowing,
+                        unfocusedTextColor = WhiteGlowing
                     ),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
@@ -376,14 +376,14 @@ fun DailyCheckInDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(NavySurfaceVariant)
+                        .background(BlackElevated)
                         .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = Translations.t("streak_safe_toggle", language),
-                        color = TextPrimary,
+                        color = WhiteGlowing,
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
                     )
@@ -392,8 +392,10 @@ fun DailyCheckInDialog(
                         checked = streakKeptClean,
                         onCheckedChange = { streakKeptClean = it },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = EmeraldPrimary,
-                            checkedTrackColor = Color(0xFF064E3B)
+                            checkedThumbColor = WhiteGlowing,
+                            checkedTrackColor = GreenCalmDark,
+                            uncheckedThumbColor = WhiteMuted,
+                            uncheckedTrackColor = BlackBorder
                         )
                     )
                 }
@@ -417,8 +419,8 @@ fun DailyCheckInDialog(
                         onSaveCheckIn(checkIn)
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EmeraldPrimary,
-                        contentColor = OnEmerald
+                        containerColor = GreenCalm,
+                        contentColor = OnGreenCalm
                     ),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier

@@ -2,48 +2,77 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// BreakFree / تعافي Dark Mode Palette
-val MidnightNavy = Color(0xFF0B132B)     // Background #0b132b
-val SlateNavy = Color(0xFF1C2541)        // Cards #1c2541
-val ElevatedNavy = Color(0xFF233054)     // Elevated Surface
-val DarkNavyBorder = Color(0xFF2C3E6B)
+// =========================================================================
+// STRICT THREE-COLOR THEME: Black, White Glowing, Green Calm
+// =========================================================================
 
-// Accent & Status Colors
-val EmeraldGreen = Color(0xFF10B981)     // Accent #10b981
-val EmeraldLight = Color(0xFF34D399)
-val EmeraldGlow = Color(0xFF059669)
-val EmeraldContainer = Color(0xFF064E3B)
-val OnEmerald = Color(0xFF022C22)
+// 1. BLACK (Deep pure black and dark elevated surfaces)
+val PureBlack = Color(0xFF000000)            // Deep background
+val BlackSurface = Color(0xFF080D0A)         // Primary surface
+val BlackCard = Color(0xFF0E1511)            // Cards & containers
+val BlackElevated = Color(0xFF141E18)        // Elevated dialogs & sheets
+val BlackBorder = Color(0xFF1D2A21)          // Subtle structural borders
 
-val AmberGold = Color(0xFFF59E0B)        // Highlights #f59e0b
-val AmberContainer = Color(0x33F59E0B)
+// 2. WHITE GLOWING (Pure crisp white with luminous glowing accents)
+val WhiteGlowing = Color(0xFFFFFFFF)         // Glowing white text & primary accents
+val WhiteDim = Color(0xCCFFFFFF)             // High-contrast readable secondary text
+val WhiteMuted = Color(0x80FFFFFF)           // Muted labels & placeholders
+val WhiteGlow = Color(0x4DFFFFFF)            // Glowing white luminescence
+val WhiteGlowBorder = Color(0x38FFFFFF)      // Glowing white rim stroke
+val WhiteSubtleBorder = Color(0x1FFFFFFF)    // Subtle white glassmorphic border
 
-val RoseAlert = Color(0xFFF43F5E)        // Alert #f43f5e
-val RoseWarningDark = Color(0xFF881337)
-val RoseContainer = Color(0x33F43F5E)
+// 3. GREEN CALM (Soothing, serene healing green)
+val GreenCalm = Color(0xFF10B981)            // Serene emerald / calm mint green
+val GreenCalmLight = Color(0xFF34D399)       // Bright calm green highlight
+val GreenCalmDark = Color(0xFF064E3B)        // Deep calm green
+val GreenCalmContainer = Color(0xFF032B1F)   // Calm green pill container
+val GreenCalmGlow = Color(0x3310B981)        // Gentle calm green aura
+val GreenCalmBorder = Color(0x4D10B981)      // Calm green border
+val OnGreenCalm = Color(0xFF021B11)          // Text on calm green
 
-val CyanAccent = Color(0xFF06B6D4)
+// =========================================================================
+// COMPATIBILITY MAPPINGS: Mapped strictly to Black, White Glowing, Green Calm
+// =========================================================================
 
-// Typography Colors
-val TextPrimary = Color(0xFFF8FAFC)
-val TextSecondary = Color(0xFF94A3B8)
-val TextMuted = Color(0xFF64748B)
+// Surfaces & Backgrounds -> Black
+val MidnightNavy = PureBlack
+val SlateNavy = BlackCard
+val ElevatedNavy = BlackElevated
+val DarkNavyBorder = BlackBorder
+val DarkNavyBackground = PureBlack
+val NavySurface = BlackCard
+val NavySurfaceVariant = BlackElevated
+val NavyBorder = BlackBorder
+val GlassCardBg = BlackCard
+val GlassCardBackground = BlackCard
+val GlassBottomBarBg = Color(0xF2070C09)
 
-// Glassmorphism tokens
-val GlassBorderSubtle = Color(0x14FFFFFF)   // rgba(255, 255, 255, 0.08)
-val GlassBorderEmerald = Color(0x3310B981)
-val GlassBorderRose = Color(0x4DF43F5E)
-val GlassBottomBarBg = Color(0xE6141D38)
-val GlassCardBg = Color(0xF21C2541)
+// Accent & Primary -> Green Calm
+val EmeraldGreen = GreenCalm
+val EmeraldLight = GreenCalmLight
+val EmeraldGlow = GreenCalmGlow
+val EmeraldContainer = GreenCalmContainer
+val OnEmerald = OnGreenCalm
+val EmeraldPrimary = GreenCalm
 
-// Backward compatibility aliases
-val DarkNavyBackground = MidnightNavy
-val NavySurface = SlateNavy
-val NavySurfaceVariant = ElevatedNavy
-val NavyBorder = DarkNavyBorder
-val EmeraldPrimary = EmeraldGreen
-val RoseWarning = RoseAlert
-val AmberAlert = AmberGold
-val GlassCardBackground = GlassCardBg
-val GlassCardBorder = GlassBorderEmerald
-val GlassWarningBorder = GlassBorderRose
+// Alerts & Urgent States -> White Glowing / Green Calm (Strictly No Red/Amber/Blue)
+val RoseAlert = WhiteGlowing
+val RoseWarning = WhiteGlowing
+val RoseWarningDark = BlackElevated
+val RoseContainer = Color(0x22FFFFFF)
+val AmberGold = WhiteGlowing
+val AmberAlert = WhiteGlowing
+val AmberContainer = Color(0x22FFFFFF)
+val CyanAccent = GreenCalmLight
+
+// Typography -> White Glowing / Dim / Muted
+val TextPrimary = WhiteGlowing
+val TextSecondary = WhiteDim
+val TextMuted = WhiteMuted
+
+// Glassmorphism borders -> White Glowing or Green Calm
+val GlassBorderSubtle = WhiteSubtleBorder
+val GlassBorderEmerald = GreenCalmBorder
+val GlassBorderRose = WhiteGlowBorder
+val GlassCardBorder = GreenCalmBorder
+val GlassWarningBorder = WhiteGlowBorder
