@@ -115,6 +115,9 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     private val _updateError = MutableStateFlow<String?>(null)
     val updateError: StateFlow<String?> = _updateError.asStateFlow()
 
+    private val _updateStatusMessage = MutableStateFlow<String?>(null)
+    val updateStatusMessage: StateFlow<String?> = _updateStatusMessage.asStateFlow()
+
     private val _updateDownloadProgress = MutableStateFlow<Int?>(null)
     val updateDownloadProgress: StateFlow<Int?> = _updateDownloadProgress.asStateFlow()
 
@@ -592,15 +595,20 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         if (_updateCheckInProgress.value) return
         _updateCheckInProgress.value = true
         _updateError.value = null
+        _updateStatusMessage.value = null
         AutoUpdater.check(
             app,
             onResult = { info ->
                 _updateInfo.value = info
                 _updateCheckInProgress.value = false
+                if (info == null) {
+                    _updateStatusMessage.value = "You're up to date."
+                }
             },
             onError = { message ->
                 if (manual) _updateError.value = message
                 _updateCheckInProgress.value = false
+                if (manual) _updateStatusMessage.value = null
             }
         )
     }
@@ -634,6 +642,10 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun clearUpdateError() {
         _updateError.value = null
+    }
+
+    fun clearUpdateStatusMessage() {
+        _updateStatusMessage.value = null
     }
 
     // Daily Mood & Urge Check-in methods

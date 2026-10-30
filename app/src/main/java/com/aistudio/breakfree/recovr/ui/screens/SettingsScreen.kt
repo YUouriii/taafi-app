@@ -104,6 +104,7 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsState()
     val updateCheckInProgress by viewModel.updateCheckInProgress.collectAsState()
     val updateError by viewModel.updateError.collectAsState()
+    val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val streakSummary by viewModel.streakSummary.collectAsState()
     val isServiceConnected by MonitoringManager.isServiceConnected.collectAsState()
@@ -328,6 +329,10 @@ fun SettingsScreen(
                     updateError?.let { err ->
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = err, color = DangerRed, fontSize = 11.5.sp)
+                    }
+                    updateStatusMessage?.let { msg ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = msg, color = GreenCalmLight, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

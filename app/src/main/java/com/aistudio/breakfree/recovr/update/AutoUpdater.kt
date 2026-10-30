@@ -99,12 +99,18 @@ object AutoUpdater {
                 val connection = (URL(checkUrl(context)).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     setRequestProperty("Accept", "application/json")
+                    setRequestProperty("User-Agent", "BreakFree-Updater")
                     connectTimeout = 15000
                     readTimeout = 15000
                 }
                 val code = connection.responseCode
                 if (code !in 200..299) {
-                    onError("Server returned HTTP $code")
+                    val msg = when (code) {
+                        403 -> "GitHub rate limit reached. Try again later."
+                        404 -> "No release found. Publish a release on GitHub first."
+                        else -> "Server returned HTTP $code"
+                    }
+                    onError(msg)
                     connection.disconnect()
                     return@Thread
                 }
