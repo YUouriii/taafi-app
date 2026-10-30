@@ -42,11 +42,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.breakfree.recovr.BuildConfig
 import com.aistudio.breakfree.recovr.localization.Translations
-import com.aistudio.breakfree.recovr.model.AppLanguage
+import com.aistudio.breakfree.recovr.stealth.StealthManager
 import com.aistudio.breakfree.recovr.model.Badge
+import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.model.BadgesRepository
 import com.aistudio.breakfree.recovr.ui.components.BadgeItem
 import com.aistudio.breakfree.recovr.ui.components.BrandMark
+import com.aistudio.breakfree.recovr.ui.components.CostumeBadge
 import com.aistudio.breakfree.recovr.ui.components.CostumeBadge
 import com.aistudio.breakfree.recovr.ui.components.CostumeEmoji
 import com.aistudio.breakfree.recovr.ui.components.CostumeIconType
@@ -89,6 +91,32 @@ fun DashboardScreen(
     val currentUser by viewModel.currentUser.collectAsState()
     val dailyCheckIns by viewModel.dailyCheckIns.collectAsState()
     val isCheckInDialogOpen by viewModel.isCheckInDialogOpen.collectAsState()
+
+    val duressMode by StealthManager.duressMode.collectAsState()
+
+    if (duressMode) {
+        // Duress PIN was entered: show a plausible empty dashboard instead of real data.
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Welcome",
+                    color = TextPrimary,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "No activity yet. Start your first check-in to begin.",
+                    color = TextMuted,
+                    fontSize = 13.sp
+                )
+            }
+        }
+        return
+    }
 
     val showVictoryDialog by viewModel.showVictoryDialog.collectAsState()
     val showRelapseDialog by viewModel.showRelapseDialog.collectAsState()

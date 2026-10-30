@@ -30,13 +30,37 @@ object StealthManager {
     private val _isLocked = MutableStateFlow(false)
     val isLocked: StateFlow<Boolean> = _isLocked.asStateFlow()
 
+    // When true, the dashboard shows a fake/empty view (duress PIN was used).
+    private val _duressMode = MutableStateFlow(false)
+    val duressMode: StateFlow<Boolean> = _duressMode.asStateFlow()
+
+    fun setDuressMode(value: Boolean) { _duressMode.value = value }
+
     private var lastUnlockTimeMs: Long = 0L
 
     fun lock() { _isLocked.value = true }
 
-    fun unlock(context: Context) {
+    fun unlock(context: Context, duress: Boolean = false) {
         _isLocked.value = false
+        _duressMode.value = duress
         prefs(context).lastUnlockTimeMs = System.currentTimeMillis()
+        if (duress && prefs(context).duressWipeEnabled) {
+            // Wipe recovery data. Guarded so a misconfigured toggle can't destroy data
+            // unless the user explicitly opted in.
+            wipeRecoveryData(context)
+        }
+    }
+
+    private fun wipeRecoveryData(context: Context) {
+        // Clear monitoring prefs and streak/check-in data for the current account.
+        try {
+            context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE).edit().clear().apply()
+            // Reset stealth lock state so the app doesn't stay in duress mode forever.
+            prefs(context).stealthEnabled = false
+            _duressMode.value = false
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Wipe failed", e)
+        }
     }
 
     /** Restores the lock state from prefs on app start. */
@@ -150,6 +174,32 @@ object StealthManager {
         val hash = p.pinHash ?: return false
         return hashPin(pin, salt) == hash
     }
+
+    fun verifyDuressPin(context: Context, pin: String): Boolean {
+        val p = prefs(context)
+        val salt = p.duressSalt ?: return false
+        val hash = p.duressPinHash ?: return false
+        return hashPin(pin, salt) == hash
+    }
+
+    fun setDuressPin(context: Context, pin: String): Boolean {
+        if (pin.length !in 4..6 || !pin.all { it.isDigit() }) return false
+        val p = prefs(context)
+        val salt = generateSalt()
+        p.duressSalt = salt
+        p.duressPinHash = hashPin(pin, salt)
+        return true
+    }
+
+    fun clearDuressPin(context: Context) {
+        val p = prefs(context)
+        p.duressPinHash = null
+        p.duressSalt = null
+    }
+
+    fun hasDuressPin(context: Context): Boolean = prefs(context).hasDuressPin()
+
+    fun duressWipeEnabled(context: Context): Boolean = prefs(context).duressWipeEnabled
 
     fun setRecoveryQuestion(context: Context, question: String, answer: String): Boolean {
         if (question.isBlank() || answer.isBlank()) return false

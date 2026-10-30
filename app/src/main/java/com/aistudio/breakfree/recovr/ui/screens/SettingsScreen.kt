@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,6 +86,7 @@ import com.aistudio.breakfree.recovr.ui.theme.OnDanger
 import com.aistudio.breakfree.recovr.ui.theme.RoseAlert
 import com.aistudio.breakfree.recovr.ui.theme.SoftGold
 import com.aistudio.breakfree.recovr.ui.theme.GreenCalmContainer
+import com.aistudio.breakfree.recovr.ui.theme.SoftCoral
 import com.aistudio.breakfree.recovr.ui.theme.TextMuted
 import com.aistudio.breakfree.recovr.ui.theme.TextPrimary
 import com.aistudio.breakfree.recovr.ui.theme.TextSecondary
@@ -111,6 +113,7 @@ fun SettingsScreen(
     val stealthPrefs = remember { com.aistudio.breakfree.recovr.stealth.StealthPreferences(context) }
     var stealthEnabled by remember { mutableStateOf(stealthPrefs.stealthEnabled) }
     var showStealthSetup by remember { mutableStateOf(false) }
+    var showDuressDialog by remember { mutableStateOf(false) }
     val currentUser by viewModel.currentUser.collectAsState()
     val streakSummary by viewModel.streakSummary.collectAsState()
     val isServiceConnected by MonitoringManager.isServiceConnected.collectAsState()
@@ -411,6 +414,48 @@ fun SettingsScreen(
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        // Duress PIN
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Duress PIN",
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (com.aistudio.breakfree.recovr.stealth.StealthManager.hasDuressPin(context)) "Set" else "Not set",
+                                    color = TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            TextButton(onClick = { showDuressDialog = true }) {
+                                Text(
+                                    text = if (com.aistudio.breakfree.recovr.stealth.StealthManager.hasDuressPin(context)) "Change" else "Set",
+                                    color = SoftGold,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Wipe data on duress",
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = stealthPrefs.duressWipeEnabled,
+                                onCheckedChange = { stealthPrefs.duressWipeEnabled = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = DangerRed,
+                                    checkedTrackColor = DangerRed.copy(alpha = 0.4f)
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -429,6 +474,79 @@ fun SettingsScreen(
                             }
                         },
                         onDismiss = { showStealthSetup = false }
+                    )
+                }
+            }
+
+            if (showDuressDialog) {
+                item {
+                    AlertDialog(
+                        onDismissRequest = { showDuressDialog = false },
+                        title = { Text("Duress PIN", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                        text = {
+                            var duressPin by remember { mutableStateOf("") }
+                            var duressConfirm by remember { mutableStateOf("") }
+                            var duressError by remember { mutableStateOf<String?>(null) }
+                            Column {
+                                Text(
+                                    text = "A second PIN that opens a fake (empty) dashboard when coerced. Optionally wipes data if enabled above.",
+                                    color = TextMuted,
+                                    fontSize = 12.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = duressPin,
+                                    onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) duressPin = it },
+                                    label = { Text("Duress PIN") },
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = duressConfirm,
+                                    onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) duressConfirm = it },
+                                    label = { Text("Confirm") },
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                duressError?.let {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(text = it, color = SoftCoral, fontSize = 11.sp)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = {
+                                        com.aistudio.breakfree.recovr.stealth.StealthManager.clearDuressPin(context)
+                                        showDuressDialog = false
+                                    }) {
+                                        Text("Clear", color = DangerRed, fontSize = 12.sp)
+                                    }
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    TextButton(onClick = {
+                                        if (duressPin.length !in 4..6) {
+                                            duressError = "PIN must be 4-6 digits."
+                                            return@TextButton
+                                        }
+                                        if (duressPin != duressConfirm) {
+                                            duressError = "PINs do not match."
+                                            return@TextButton
+                                        }
+                                        val ok = com.aistudio.breakfree.recovr.stealth.StealthManager.setDuressPin(context, duressPin)
+                                        if (ok) showDuressDialog = false
+                                        else duressError = "Failed to set PIN."
+                                    }) {
+                                        Text("Save", color = GreenCalmLight, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = {},
+                        containerColor = BlackElevated,
+                        titleContentColor = TextPrimary,
+                        textContentColor = TextSecondary
                     )
                 }
             }

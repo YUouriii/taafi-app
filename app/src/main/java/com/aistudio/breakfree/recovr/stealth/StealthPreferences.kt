@@ -101,6 +101,26 @@ class StealthPreferences(context: Context) {
             else secure.edit().putString(KEY_RECOVERY_S, value).apply()
         }
 
+    var duressPinHash: String?
+        get() = secure.getString(KEY_DURESS_HASH, null)
+        set(value) {
+            if (value == null) secure.edit().remove(KEY_DURESS_HASH).apply()
+            else secure.edit().putString(KEY_DURESS_HASH, value).apply()
+        }
+
+    var duressSalt: String?
+        get() = secure.getString(KEY_DURESS_SALT, null)
+        set(value) {
+            if (value == null) secure.edit().remove(KEY_DURESS_SALT).apply()
+            else secure.edit().putString(KEY_DURESS_SALT, value).apply()
+        }
+
+    var duressWipeEnabled: Boolean
+        get() = plain.getBoolean(KEY_DURESS_WIPE, false)
+        set(value) = plain.edit().putBoolean(KEY_DURESS_WIPE, value).apply()
+
+    fun hasDuressPin(): Boolean = !duressPinHash.isNullOrBlank()
+
     fun clearPin() {
         pinHash = null
         pinSalt = null
@@ -130,6 +150,9 @@ class StealthPreferences(context: Context) {
         private const val KEY_RECOVERY_Q = "recovery_q"
         private const val KEY_RECOVERY_A = "recovery_a"
         private const val KEY_RECOVERY_S = "recovery_s"
+        private const val KEY_DURESS_HASH = "duress_hash"
+        private const val KEY_DURESS_SALT = "duress_salt"
+        private const val KEY_DURESS_WIPE = "duress_wipe"
     }
 }
 

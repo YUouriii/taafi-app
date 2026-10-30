@@ -73,7 +73,10 @@ fun StealthLockScreen(
     androidx.compose.runtime.LaunchedEffect(Unit) {
         if (biometricAvailable && activity != null) {
             showBiometric(activity) { success ->
-                if (success) onUnlock()
+                if (success) {
+                    StealthManager.unlock(activity)
+                    onUnlock()
+                }
             }
         }
     }
@@ -152,7 +155,10 @@ fun StealthLockScreen(
                                                 enteredPin += key
                                                 error = false
                                                 if (enteredPin.length >= 4) {
-                                                    if (StealthManager.verifyPin(context, enteredPin)) {
+                                                    val isDuress = StealthManager.verifyDuressPin(context, enteredPin)
+                                                    val isNormal = StealthManager.verifyPin(context, enteredPin)
+                                                    if (isDuress || isNormal) {
+                                                        StealthManager.unlock(context, duress = isDuress)
                                                         onUnlock()
                                                     } else if (enteredPin.length == 6) {
                                                         error = true
@@ -182,7 +188,10 @@ fun StealthLockScreen(
                 TextButton(onClick = {
                     if (activity != null) {
                         showBiometric(activity) { success ->
-                            if (success) onUnlock()
+                            if (success) {
+                                StealthManager.unlock(activity)
+                                onUnlock()
+                            }
                         }
                     }
                 }) {
