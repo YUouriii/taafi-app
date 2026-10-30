@@ -7,6 +7,9 @@ import android.util.Base64
 import android.util.Log
 import java.security.MessageDigest
 import java.security.SecureRandom
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Applies and removes the Stealth / Disguise Mode.
@@ -22,6 +25,47 @@ object StealthManager {
 
     private const val TAG = "StealthManager"
     private const val MAIN_ACTIVITY = "com.aistudio.breakfree.recovr.MainActivity"
+
+    // Observable lock state. true = locked (dashboard hidden).
+    private val _isLocked = MutableStateFlow(false)
+    val isLocked: StateFlow<Boolean> = _isLocked.asStateFlow()
+
+    private var lastUnlockTimeMs: Long = 0L
+
+    fun lock() { _isLocked.value = true }
+
+    fun unlock(context: Context) {
+        _isLocked.value = false
+        prefs(context).lastUnlockTimeMs = System.currentTimeMillis()
+    }
+
+    /** Restores the lock state from prefs on app start. */
+    fun restoreLockState(context: Context) {
+        val p = prefs(context)
+        if (!p.stealthEnabled || !(p.appLockEnabled && p.hasPin())) {
+            _isLocked.value = false
+            return
+        }
+        val autoLock = p.autoLockMinutes
+        val last = p.lastUnlockTimeMs
+        if (autoLock <= 0 || last == 0L) {
+            _isLocked.value = true
+        } else {
+            val elapsed = (System.currentTimeMillis() - last) / 60_000L
+            _isLocked.value = elapsed >= autoLock
+        }
+    }
+
+    fun shouldAutoLock(context: Context): Boolean {
+        val p = prefs(context)
+        val autoLock = p.autoLockMinutes
+        if (autoLock <= 0) return false
+        val last = p.lastUnlockTimeMs
+        if (last == 0L) return true
+        val elapsed = (System.currentTimeMillis() - last) / 60_000L
+        return elapsed >= autoLock
+    }
+
 
     fun prefs(context: Context): StealthPreferences = StealthPreferences(context)
 
@@ -105,6 +149,33 @@ object StealthManager {
         val salt = p.pinSalt ?: return false
         val hash = p.pinHash ?: return false
         return hashPin(pin, salt) == hash
+    }
+
+    fun setRecoveryQuestion(context: Context, question: String, answer: String): Boolean {
+        if (question.isBlank() || answer.isBlank()) return false
+        val p = prefs(context)
+        val salt = generateSalt()
+        p.recoveryQuestion = question
+        p.recoverySalt = salt
+        p.recoveryAnswerHash = hashPin(answer.trim().lowercase(), salt)
+        return true
+    }
+
+    fun verifyRecoveryAnswer(context: Context, answer: String): Boolean {
+        val p = prefs(context)
+        val salt = p.recoverySalt ?: return false
+        val hash = p.recoveryAnswerHash ?: return false
+        return hashPin(answer.trim().lowercase(), salt) == hash
+    }
+
+    fun resetPinWithRecovery(context: Context, answer: String, newPin: String): Boolean {
+        if (!verifyRecoveryAnswer(context, answer)) return false
+        if (newPin.length !in 4..6 || !newPin.all { it.isDigit() }) return false
+        val p = prefs(context)
+        val salt = generateSalt()
+        p.pinSalt = salt
+        p.pinHash = hashPin(newPin, salt)
+        return true
     }
 
     fun changePin(context: Context, newPin: String): Boolean {

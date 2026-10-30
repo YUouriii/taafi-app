@@ -57,6 +57,11 @@ class StealthPreferences(context: Context) {
         get() = plain.getBoolean(KEY_DISCREET_NOTIFICATIONS, true)
         set(value) = plain.edit().putBoolean(KEY_DISCREET_NOTIFICATIONS, value).apply()
 
+    /** Epoch ms of the last successful unlock. 0 = never. */
+    var lastUnlockTimeMs: Long
+        get() = plain.getLong(KEY_LAST_UNLOCK, 0L)
+        set(value) = plain.edit().putLong(KEY_LAST_UNLOCK, value).apply()
+
     /** Salted hash of the PIN, or null when no PIN is set. */
     var pinHash: String?
         get() = secure.getString(KEY_PIN_HASH, null)
@@ -74,6 +79,27 @@ class StealthPreferences(context: Context) {
         }
 
     fun hasPin(): Boolean = !pinHash.isNullOrBlank()
+
+    var recoveryQuestion: String?
+        get() = secure.getString(KEY_RECOVERY_Q, null)
+        set(value) {
+            if (value == null) secure.edit().remove(KEY_RECOVERY_Q).apply()
+            else secure.edit().putString(KEY_RECOVERY_Q, value).apply()
+        }
+
+    var recoveryAnswerHash: String?
+        get() = secure.getString(KEY_RECOVERY_A, null)
+        set(value) {
+            if (value == null) secure.edit().remove(KEY_RECOVERY_A).apply()
+            else secure.edit().putString(KEY_RECOVERY_A, value).apply()
+        }
+
+    var recoverySalt: String?
+        get() = secure.getString(KEY_RECOVERY_S, null)
+        set(value) {
+            if (value == null) secure.edit().remove(KEY_RECOVERY_S).apply()
+            else secure.edit().putString(KEY_RECOVERY_S, value).apply()
+        }
 
     fun clearPin() {
         pinHash = null
@@ -98,8 +124,12 @@ class StealthPreferences(context: Context) {
         private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
         private const val KEY_AUTO_LOCK_MINUTES = "auto_lock_minutes"
         private const val KEY_DISCREET_NOTIFICATIONS = "discreet_notifications"
+        private const val KEY_LAST_UNLOCK = "last_unlock_ms"
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_PIN_SALT = "pin_salt"
+        private const val KEY_RECOVERY_Q = "recovery_q"
+        private const val KEY_RECOVERY_A = "recovery_a"
+        private const val KEY_RECOVERY_S = "recovery_s"
     }
 }
 

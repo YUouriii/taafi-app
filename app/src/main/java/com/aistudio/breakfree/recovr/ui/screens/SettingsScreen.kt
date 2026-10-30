@@ -390,6 +390,27 @@ fun SettingsScreen(
                             color = TextMuted,
                             fontSize = 11.5.sp
                         )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Auto-lock after",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(0 to "Off", 1 to "1m", 5 to "5m", 15 to "15m").forEach { (mins, label) ->
+                                val selected = stealthPrefs.autoLockMinutes == mins
+                                TextButton(onClick = { stealthPrefs.autoLockMinutes = mins }) {
+                                    Text(
+                                        text = label,
+                                        color = if (selected) GreenCalmLight else TextMuted,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

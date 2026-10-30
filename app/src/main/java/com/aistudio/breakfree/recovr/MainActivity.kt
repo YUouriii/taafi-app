@@ -59,10 +59,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -73,6 +76,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
@@ -91,6 +97,7 @@ import com.aistudio.breakfree.recovr.ui.components.CostumeIconType
 import com.aistudio.breakfree.recovr.ui.components.FirstRunShieldSetupDialog
 import com.aistudio.breakfree.recovr.stealth.StealthManager
 import com.aistudio.breakfree.recovr.ui.components.StealthLockScreen
+import com.aistudio.breakfree.recovr.ui.components.StealthEntryScreen
 import com.aistudio.breakfree.recovr.ui.components.SosBreathingModal
 import com.aistudio.breakfree.recovr.update.AutoUpdater
 import com.aistudio.breakfree.recovr.ui.screens.AiCompanionScreen
@@ -258,7 +265,20 @@ fun BreakFreeApp(
 
     // Stealth Mode lock gate.
     val context = LocalContext.current
-    var stealthUnlocked by remember { mutableStateOf(!StealthManager.lockRequired(context)) }
+    val stealthLocked by StealthManager.isLocked.collectAsState()
+    LaunchedEffect(Unit) { StealthManager.restoreLockState(context) }
+
+    // Auto-lock on resume.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (StealthManager.shouldAutoLock(context)) StealthManager.lock()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val updateInfo by viewModel.updateInfo.collectAsState()
     val updateDownloadProgress by viewModel.updateDownloadProgress.collectAsState()
@@ -314,11 +334,24 @@ fun BreakFreeApp(
         }
 
         // Stealth Mode lock gate: blocks the dashboard until authenticated.
-        if (!stealthUnlocked && StealthManager.lockRequired(context)) {
-            StealthLockScreen(
-                language = language,
-                onUnlock = { stealthUnlocked = true }
-            )
+        // Stealth Mode lock gate: shows a decoy by default; long-press the calculator
+        // display to reveal the PIN entry.
+        if (stealthLocked && StealthManager.lockRequired(context)) {
+            var showPin by remember { mutableStateOf(false) }
+            if (showPin) {
+                StealthLockScreen(
+                    language = language,
+                    onUnlock = {
+                        StealthManager.unlock(context)
+                        showPin = false
+                    }
+                )
+            } else {
+                StealthEntryScreen(
+                    language = language,
+                    onUnlockRequested = { showPin = true }
+                )
+            }
         }
 
         // Full screen emergency SOS modal
