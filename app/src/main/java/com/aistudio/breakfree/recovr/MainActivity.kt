@@ -6,7 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,6 +61,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -69,6 +71,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -86,6 +89,8 @@ import com.aistudio.breakfree.recovr.ui.components.BreakFreeBackground
 import com.aistudio.breakfree.recovr.ui.components.CostumeBadge
 import com.aistudio.breakfree.recovr.ui.components.CostumeIconType
 import com.aistudio.breakfree.recovr.ui.components.FirstRunShieldSetupDialog
+import com.aistudio.breakfree.recovr.stealth.StealthManager
+import com.aistudio.breakfree.recovr.ui.components.StealthLockScreen
 import com.aistudio.breakfree.recovr.ui.components.SosBreathingModal
 import com.aistudio.breakfree.recovr.update.AutoUpdater
 import com.aistudio.breakfree.recovr.ui.screens.AiCompanionScreen
@@ -113,7 +118,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val viewModel: BreakFreeViewModel by viewModels()
 
@@ -175,6 +180,12 @@ class MainActivity : ComponentActivity() {
             UninstallLock.ensureDeviceOwnerCommitment(this)
         }
         syncDnsShield()
+
+        // Stealth Mode: keep the disguise in sync and protect the window.
+        StealthManager.syncDisguise(this)
+        if (StealthManager.isStealthActive(this)) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
 
         // Keep the protection process alive even when the app is closed.
         GuardForegroundService.start(this)
@@ -245,6 +256,10 @@ fun BreakFreeApp(
     val dnsShieldState by viewModel.dnsShieldState.collectAsState()
     val monitoringConsentGranted by viewModel.monitoringConsentGranted.collectAsState()
 
+    // Stealth Mode lock gate.
+    val context = LocalContext.current
+    var stealthUnlocked by remember { mutableStateOf(!StealthManager.lockRequired(context)) }
+
     val updateInfo by viewModel.updateInfo.collectAsState()
     val updateDownloadProgress by viewModel.updateDownloadProgress.collectAsState()
     val updateError by viewModel.updateError.collectAsState()
@@ -295,6 +310,14 @@ fun BreakFreeApp(
                 selectedIndex = selectedTab,
                 language = language,
                 onSelect = { selectedTab = it }
+            )
+        }
+
+        // Stealth Mode lock gate: blocks the dashboard until authenticated.
+        if (!stealthUnlocked && StealthManager.lockRequired(context)) {
+            StealthLockScreen(
+                language = language,
+                onUnlock = { stealthUnlocked = true }
             )
         }
 

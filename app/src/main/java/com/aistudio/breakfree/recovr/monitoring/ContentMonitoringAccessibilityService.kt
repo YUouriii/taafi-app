@@ -763,6 +763,14 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
             .replace("{time}", timeString)
             .replace("{total}", totalSeconds.toString())
 
+        val detectedLine = if (com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
+            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
+        ) {
+            Translations.t("grace_notification_detected_stealth", language)
+        } else {
+            Translations.t("grace_notification_detected", language)
+        }
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_shield)
             .setContentTitle(
@@ -771,7 +779,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
             .setContentText(Translations.t("grace_notification_text", language))
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    Translations.t("grace_notification_detected", language) + "\n" +
+                    detectedLine + "\n" +
                         remainingLine + "\n" +
                         Translations.t("grace_notification_stays", language) + "\n" +
                         Translations.t("grace_notification_not_recorded", language)

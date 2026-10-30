@@ -77,6 +77,10 @@ object Translations {
             "أغلق هذه الصفحة أو اخرج من التطبيق لحماية تعافيك."
         ),
         "grace_notification_detected" to Pair("Something explicit was detected.", "تم رصد محتوى صريح."),
+        "grace_notification_detected_stealth" to Pair(
+            "A mindfulness reminder was triggered.",
+            "تم تفعيل تذكير للوعي."
+        ),
         "grace_notification_remaining" to Pair(
             "You have {time} left of your {total}s window.",
             "بقي لديك {time} من نافذة {total} ثانية."
@@ -228,6 +232,24 @@ object Translations {
         "guard_service_text" to Pair(
             "Monitoring and the DNS shield stay active in the background.",
             "رصد المحتوى ودرع DNS يبقيان نشطين في الخلفية."
+        ),
+        // Stealth / Disguise Mode
+        "stealth_lock_title" to Pair("Unlock BreakFree", "افتح تعافي"),
+        "stealth_lock_subtitle" to Pair("Enter your PIN to continue", "أدخل رمز PIN للمتابعة"),
+        "stealth_lock_wrong" to Pair("Wrong PIN", "رمز PIN خاطئ"),
+        "stealth_lock_biometric" to Pair("Use biometric", "استخدام البصمة"),
+        "settings_stealth" to Pair("Stealth Mode", "وضع التخفي"),
+        "settings_stealth_desc" to Pair(
+            "Disguise the app icon and name, and lock the dashboard.",
+            "تنكر أيقونة التطبيق واسمه، وقفل لوحة التحكم."
+        ),
+        "stealth_enable" to Pair("Enable Stealth Mode", "تفعيل وضع التخفي"),
+        "stealth_disable" to Pair("Disable Stealth Mode", "إيقاف وضع التخفي"),
+        "stealth_preset" to Pair("Disguise as", "تنكر كـ"),
+        "stealth_set_pin" to Pair("Set a 4-6 digit PIN", "تعيين رمز PIN من 4-6 أرقام"),
+        "stealth_pin_required" to Pair(
+            "A PIN is required to protect the dashboard.",
+            "رمز PIN مطلوب لحماية لوحة التحكم."
         ),
 
         // First-run Shield setup

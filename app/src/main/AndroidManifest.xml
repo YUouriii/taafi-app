@@ -158,6 +158,50 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!--
+          Stealth / Disguise Mode: neutral launcher entries. Disabled by default; enabled
+          at runtime when the user turns Stealth Mode on. targetActivity is MainActivity,
+          so intents and deep links keep working.
+        -->
+        <activity-alias
+            android:name="com.aistudio.breakfree.recovr.alias.CalculatorAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:icon="@drawable/ic_stealth_calc"
+            android:label="Calculator"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name="com.aistudio.breakfree.recovr.alias.NotesAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:icon="@drawable/ic_stealth_notes"
+            android:label="Notes"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name="com.aistudio.breakfree.recovr.alias.WeatherAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:icon="@drawable/ic_stealth_weather"
+            android:label="Weather"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
     </application>
 
 </manifest>

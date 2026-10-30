@@ -69,6 +69,7 @@ import com.aistudio.breakfree.recovr.ui.components.SectionHeader
 import com.aistudio.breakfree.recovr.ui.components.SegmentedControl
 import com.aistudio.breakfree.recovr.ui.components.SettingRow
 import com.aistudio.breakfree.recovr.ui.components.SoftCard
+import com.aistudio.breakfree.recovr.ui.components.StealthSetupDialog
 import com.aistudio.breakfree.recovr.ui.components.SoftDivider
 import com.aistudio.breakfree.recovr.ui.components.DeviceOwnerSetupDialog
 import com.aistudio.breakfree.recovr.ui.components.UninstallLockActiveDialog
@@ -83,6 +84,7 @@ import com.aistudio.breakfree.recovr.ui.theme.GreenCalmLight
 import com.aistudio.breakfree.recovr.ui.theme.OnDanger
 import com.aistudio.breakfree.recovr.ui.theme.RoseAlert
 import com.aistudio.breakfree.recovr.ui.theme.SoftGold
+import com.aistudio.breakfree.recovr.ui.theme.GreenCalmContainer
 import com.aistudio.breakfree.recovr.ui.theme.TextMuted
 import com.aistudio.breakfree.recovr.ui.theme.TextPrimary
 import com.aistudio.breakfree.recovr.ui.theme.TextSecondary
@@ -105,6 +107,10 @@ fun SettingsScreen(
     val updateCheckInProgress by viewModel.updateCheckInProgress.collectAsState()
     val updateError by viewModel.updateError.collectAsState()
     val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
+
+    val stealthPrefs = remember { com.aistudio.breakfree.recovr.stealth.StealthPreferences(context) }
+    var stealthEnabled by remember { mutableStateOf(stealthPrefs.stealthEnabled) }
+    var showStealthSetup by remember { mutableStateOf(false) }
     val currentUser by viewModel.currentUser.collectAsState()
     val streakSummary by viewModel.streakSummary.collectAsState()
     val isServiceConnected by MonitoringManager.isServiceConnected.collectAsState()
@@ -334,6 +340,75 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = msg, color = GreenCalmLight, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                     }
+                }
+            }
+
+            // ---------------------------------------------------------------
+            // Stealth / Disguise Mode
+            // ---------------------------------------------------------------
+            item {
+                SectionHeader(title = Translations.t("settings_stealth", language))
+            }
+            item {
+                SoftCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconTile(type = CostumeIconType.PRIVACY, tint = SoftGold, size = 40.dp)
+                        Spacer(modifier = Modifier.size(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = Translations.t("settings_stealth", language),
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = Translations.t("settings_stealth_desc", language),
+                                color = TextMuted,
+                                fontSize = 11.5.sp
+                            )
+                        }
+                        Switch(
+                            checked = stealthEnabled,
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    showStealthSetup = true
+                                } else {
+                                    com.aistudio.breakfree.recovr.stealth.StealthManager.disable(context)
+                                    stealthEnabled = false
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = GreenCalmLight,
+                                checkedTrackColor = GreenCalmContainer
+                            )
+                        )
+                    }
+                    if (stealthEnabled) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Disguised as: ${stealthPrefs.disguisePreset.label}",
+                            color = TextMuted,
+                            fontSize = 11.5.sp
+                        )
+                    }
+                }
+            }
+
+            if (showStealthSetup) {
+                item {
+                    StealthSetupDialog(
+                        language = language,
+                        onConfirm = { preset, pin ->
+                            val ok = com.aistudio.breakfree.recovr.stealth.StealthManager.enable(
+                                context, preset, pin, discreetNotifications = true
+                            )
+                            if (ok) {
+                                stealthEnabled = true
+                                showStealthSetup = false
+                            }
+                        },
+                        onDismiss = { showStealthSetup = false }
+                    )
                 }
             }
 
