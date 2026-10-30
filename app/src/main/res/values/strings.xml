@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">BreakFree</string>
-    <string name="accessibility_service_description">BreakFree monitors explicit content to activate the 120-second mindfulness grace period and safeguard your recovery streak.</string>
+    <string name="accessibility_service_description">BreakFree reads the visible text and address bar of pages in the browsers you choose, and the visible text of supported social apps (YouTube, X, Instagram, TikTok, Facebook and Reddit) once you agree to that wider scope, on this device only, to spot explicit content and offer you a 120-second reminder to step back. The text is checked in memory and is never stored, logged or uploaded. You can turn this off at any time in Settings.</string>
+
+    <!-- Shown on the system "Activate device admin" screen. -->
+    <string name="device_admin_description">BreakFree holds this administrator role to prevent uninstallation during your 90-day recovery commitment. It releases automatically when the 90 days end.</string>
+    <string name="device_admin_explanation">Android will refuse to uninstall BreakFree while this is on; the only way out is to deactivate it deliberately in system Settings. It releases itself automatically after 90 days.</string>
+    <string name="device_admin_disable_warning">Warning: Your 90-day recovery commitment is active. Deactivating this allows removing the app and jeopardizes your healing streak. Stay strong!</string>
 </resources>

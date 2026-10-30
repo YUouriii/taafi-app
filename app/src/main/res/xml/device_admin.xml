@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  No policies are requested on purpose.
+
+  A device administrator that declares no policies still becomes "active", and an active
+  administrator cannot be uninstalled until it is deactivated — which is the only thing
+  BreakFree needs. Declaring policies (lock, wipe, password rules) would hand the app
+  control over the phone that it must never have.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

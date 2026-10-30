@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="firestore_database_id" translatable="false">ai-studio-android-breakfre-31c600d5-b3cb-487e-a8d7-9ab4f41b2ae8</string>
-    <string name="recaptcha_site_key" translatable="false">6LeVHQUuAAAAAE9N8eDXdM20LjpE1416U9eoTbEr</string>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Firestore database used by the app. The project (taafi-9271e) only has the
+      default database; the previous value named a database from another project, so
+      every read and write failed with NOT_FOUND. firebase.json also deploys the rules
+      to "(default)", so the two now agree.
+    -->
+    <string name="firestore_database_id" translatable="false">(default)</string>
+    <!--
+      Read by name in AppCheckUtil (getIdentifier), which is why lint cannot see the
+      usage. Deleting it silently disables App Check in release builds.
+    -->
+    <string name="recaptcha_site_key" translatable="false" tools:ignore="UnusedResources">6LeVHQUuAAAAAE9N8eDXdM20LjpE1416U9eoTbEr</string>
 </resources>

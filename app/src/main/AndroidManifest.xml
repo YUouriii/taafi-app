@@ -5,9 +5,30 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+      Read-only check of the active network's Private DNS state, so the DNS shield card
+      can tell "active" from "off" after the user returns from system Settings.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Allows the in-app updater to trigger the system install screen for a downloaded APK. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!--
+      The DNS filter runs as a foreground service so Android keeps it alive while the VPN
+      is up; without it the tunnel would be torn down whenever the app is reclaimed.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!--
+      Draws the step-back reminder directly over the browser (TYPE_APPLICATION_OVERLAY).
+      This is a "special" permission: it cannot be requested with requestPermissions(),
+      only granted by the user in Settings > Special app access > Display over other apps.
+      The app is fully usable without it; the reminder then arrives as a notification.
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -19,7 +40,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.MyApplication">
             <intent-filter>
@@ -27,6 +47,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          DNS shield, non-Device-Owner path: a VPN that carries DNS queries only. Android
+          requires a VPN app to hold the BIND_VPN_SERVICE permission, and the system shows
+          its own VPN indicator for as long as this runs.
+        -->
+        <service
+            android:name=".monitoring.DnsFilterVpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device DNS filter: the tunnel carries DNS queries only, so adult domains can be blocked before a connection is opened." />
+        </service>
 
         <service
             android:name=".monitoring.ContentMonitoringAccessibilityService"
@@ -39,6 +77,60 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!--
+          Optional 90-day commitment: while this administrator is active, Android refuses
+          to uninstall the app. It declares no device policies (see xml/device_admin.xml),
+          so it cannot lock, wipe or change anything. Activated only from the Settings
+          disclosure screen and released automatically when the commitment ends.
+        -->
+        <receiver
+            android:name=".monitoring.UninstallGuardReceiver"
+            android:description="@string/device_admin_description"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Fires on the release date so the commitment ends on its own. -->
+        <receiver
+            android:name=".monitoring.UninstallLockReleaseReceiver"
+            android:exported="false" />
+
+        <!--
+          Device Owner provisioning (QR / NFC during first-time setup). The system setup
+          wizard launches this, and the platform does the provisioning itself.
+        -->
+        <activity
+            android:name=".monitoring.DeviceOwnerProvisioningActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.app.action.PROVISION_MANAGED_DEVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          FileProvider for the in-app updater: shares the downloaded APK with the system
+          installer without exposing the app's private storage.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

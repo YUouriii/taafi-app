@@ -57,7 +57,10 @@ service cloud.firestore {
 
       allow update: if isOwner(userId) &&
                        incoming().userId == existing().userId &&
-                       incoming().createdAt == existing().createdAt &&
+                       // createdAt must stay stable, but a client that has not yet
+                       // cached the server value may re-send the server timestamp.
+                       (incoming().createdAt == existing().createdAt ||
+                        incoming().createdAt == request.time) &&
                        isValidUserProfile(incoming());
 
       allow delete: if isOwner(userId);
@@ -74,7 +77,8 @@ service cloud.firestore {
 
         allow update: if isOwner(userId) &&
                          incoming().userId == existing().userId &&
-                         incoming().createdAt == existing().createdAt &&
+                         (incoming().createdAt == existing().createdAt ||
+                          incoming().createdAt == request.time) &&
                          isValidDailyCheckIn(incoming());
 
         allow delete: if isOwner(userId);

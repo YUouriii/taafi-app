@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome layer for themed icons. Android tints this by alpha, so it is drawn as a
+  white silhouette: the shield outline plus the sprout.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,24 L77,32.5 L77,52 C77,68.5 67,79 54,85 C41,79 31,68.5 31,52 L31,32.5 Z" />
+
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,71 C54,62 54,55 54,47" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M53.5,57 C47,57 42.5,52.6 42.5,46 C49,46 53.5,50.4 53.5,57 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54.5,51 C54.5,43.6 59.9,38.6 67,38.6 C67,46 61.6,51 54.5,51 Z" />
+</vector>
