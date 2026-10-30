@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -209,11 +210,18 @@ fun DailyCheckInDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    FieldLabel(Translations.t("urge_question", language))
+                    Text(
+                        text = Translations.t("urge_question", language),
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
                     Pill(
                         text = "$urgeInt / 10",
                         color = urgeColor,
-                        filled = true
+                        filled = true,
+                        modifier = Modifier.defaultMinSize(minWidth = 64.dp)
                     )
                 }
 

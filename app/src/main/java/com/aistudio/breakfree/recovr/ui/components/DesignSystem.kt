@@ -254,7 +254,9 @@ fun Pill(
             color = color,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = headingTracking(0.2.sp)
+            letterSpacing = headingTracking(0.2.sp),
+            maxLines = 1,
+            softWrap = false
         )
     }
 }
@@ -382,7 +384,9 @@ fun SegmentedControl(
                     text = label,
                     color = if (selected) GreenCalmLight else TextSecondary,
                     fontSize = 13.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }

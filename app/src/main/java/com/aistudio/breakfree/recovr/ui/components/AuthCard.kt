@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -203,7 +204,9 @@ fun AuthCard(
                                 text = "G",
                                 color = Color(0xFF1A73E8),
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 13.sp
                             )
                         }
                         Spacer(modifier = Modifier.width(9.dp))

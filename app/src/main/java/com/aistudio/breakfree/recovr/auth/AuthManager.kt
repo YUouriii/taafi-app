@@ -114,7 +114,13 @@ object AuthManager {
                 onAuthCancelled()
             } catch (e: Exception) {
                 Log.e(TAG, "Google Sign-In failed", e)
-                onAuthError(e.localizedMessage ?: "Sign-in failed")
+                val message = when {
+                    e.message?.contains("10:", ignoreCase = true) == true ||
+                        e.message?.contains("DEVELOPER_ERROR", ignoreCase = true) == true ->
+                        "Google Sign-In configuration error. The app's signing key SHA-1 may not be registered in Firebase."
+                    else -> e.localizedMessage ?: "Sign-in failed"
+                }
+                onAuthError(message)
             }
         }
     }

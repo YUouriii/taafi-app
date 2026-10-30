@@ -369,6 +369,7 @@ object Translations {
         "settings_theme_desc" to Pair("Dark, light, or follow the system", "داكن، فاتح، أو حسب النظام"),
         "theme_dark" to Pair("Dark", "داكن"),
         "theme_light" to Pair("Light", "فاتح"),
+        "theme_system" to Pair("System", "نظام"),
         "update_available_title" to Pair("Update available", "تحديث متاح"),
         "update_available_body" to Pair(
             "Version {version} is available. Download and install it now?",

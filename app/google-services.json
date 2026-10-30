@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "714727868953-f7pfr8scso30p6hsg6k5cp5gnpgokdd4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "breakfree.app",
+            "certificate_hash": "0a38ee7af304bba8a9fb85f31eacb10eeec871a3"
+          }
+        },
+        {
           "client_id": "714727868953-b4fk4rt4ljt9udbcfi8neoqb3cb0q5tm.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -49,6 +57,14 @@
           "android_info": {
             "package_name": "com.aistudio.breakfree.recovr",
             "certificate_hash": "0a38ee7af304bba8a9fb85f31eacb10eeec871a3"
+          }
+        },
+        {
+          "client_id": "714727868953-u3lm829eln0tkfi7fjq6tqqhlav4tfos.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.breakfree.recovr",
+            "certificate_hash": "82b87684f0fb70a34074e18e9873e874db26b332"
           }
         },
         {
