@@ -64,4 +64,13 @@ object AccessibilityMonitor {
     /** True on Android 13+, where restricted settings exist. */
     fun restrictedSettingsApply(): Boolean =
         android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
+
+    /** True on OEMs that kill background services unless the user enables "Autostart". */
+    fun isOemThatBlocksAutostart(): Boolean {
+        val manufacturer = android.os.Build.MANUFACTURER.lowercase()
+        return manufacturer.contains("xiaomi") || manufacturer.contains("redmi") ||
+            manufacturer.contains("poco") || manufacturer.contains("oppo") ||
+            manufacturer.contains("vivo") || manufacturer.contains("huawei") ||
+            manufacturer.contains("honor") || manufacturer.contains("oneplus")
+    }
 }

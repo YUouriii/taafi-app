@@ -218,6 +218,18 @@ object Translations {
         ),
         "dns_vpn_notification_stop" to Pair("Turn off", "إيقاف"),
 
+        // Guard foreground service (keeps protection alive)
+        "guard_service_channel" to Pair("Protection", "الحماية"),
+        "guard_service_channel_desc" to Pair(
+            "Shown while BreakFree's protection is running",
+            "يظهر أثناء عمل حماية تعافي"
+        ),
+        "guard_service_title" to Pair("Protection is on", "الحماية مفعّلة"),
+        "guard_service_text" to Pair(
+            "Monitoring and the DNS shield stay active in the background.",
+            "رصد المحتوى ودرع DNS يبقيان نشطين في الخلفية."
+        ),
+
         // First-run Shield setup
         "setup_title" to Pair("Set up your Shield", "جهّز درعك"),
         "setup_intro" to Pair(
@@ -256,6 +268,10 @@ object Translations {
         "setup_step_restricted" to Pair(
             "Allow restricted settings (Android 13+)",
             "السماح بالإعدادات المقيّدة (أندرويد 13+)"
+        ),
+        "setup_step_autostart" to Pair(
+            "Enable Autostart (Xiaomi/MIUI and similar)",
+            "تفعيل التشغيل التلقائي (Xiaomi/MIUI وما شابه)"
         ),
         "setup_step_monitor" to Pair("Enable the content monitor", "تفعيل رصد المحتوى"),
         "setup_step_dns" to Pair("Enable the DNS shield", "تفعيل درع DNS"),

@@ -80,6 +80,7 @@ import androidx.lifecycle.lifecycleScope
 import com.aistudio.breakfree.recovr.localization.Translations
 import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.monitoring.DnsShield
+import com.aistudio.breakfree.recovr.monitoring.GuardForegroundService
 import com.aistudio.breakfree.recovr.monitoring.UninstallLock
 import com.aistudio.breakfree.recovr.ui.components.BreakFreeBackground
 import com.aistudio.breakfree.recovr.ui.components.CostumeBadge
@@ -174,6 +175,9 @@ class MainActivity : ComponentActivity() {
             UninstallLock.ensureDeviceOwnerCommitment(this)
         }
         syncDnsShield()
+
+        // Keep the protection process alive even when the app is closed.
+        GuardForegroundService.start(this)
 
         viewModel.checkForUpdate()
         if (!notificationPermissionChecked) {

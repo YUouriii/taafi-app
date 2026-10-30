@@ -982,6 +982,19 @@ private fun SetupChecklistCard(
             ChecklistDivider()
         }
 
+        // Step 1b: autostart on OEMs that block background services by default (Xiaomi, ...).
+        if (AccessibilityMonitor.isOemThatBlocksAutostart()) {
+            ChecklistRow(
+                language = language,
+                done = false,
+                titleKey = "setup_step_autostart",
+                actionKey = "setup_open_app_info",
+                testTag = "checklist_autostart_btn",
+                onAction = onAllowRestricted
+            )
+            ChecklistDivider()
+        }
+
         // Step 2: content monitor.
         ChecklistRow(
             language = language,

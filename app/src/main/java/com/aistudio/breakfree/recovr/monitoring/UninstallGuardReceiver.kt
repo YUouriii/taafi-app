@@ -24,11 +24,9 @@ class UninstallGuardReceiver : DeviceAdminReceiver() {
         UninstallLock.onDisabled(context)
     }
 
-    /**
-     * Android shows this text when the user opens the "deactivate" dialog, so the warning
-     * is delivered exactly where the decision is made instead of in a screen they may
-     * never see.
-     */
-    override fun onDisableRequested(context: Context, intent: Intent): CharSequence =
-        context.getString(R.string.device_admin_disable_warning)
+    override fun onDisableRequested(context: Context, intent: Intent): CharSequence {
+        // Android shows this text in the deactivation dialog, so the warning is
+        // delivered exactly where the user is about to remove the barrier.
+        return context.getString(R.string.device_admin_disable_warning)
+    }
 }

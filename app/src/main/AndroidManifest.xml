@@ -10,6 +10,8 @@
       can tell "active" from "off" after the user returns from system Settings.
     -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Start protection automatically after the phone reboots. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Allows the in-app updater to trigger the system install screen for a downloaded APK. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!--
@@ -66,10 +68,34 @@
                 android:value="On-device DNS filter: the tunnel carries DNS queries only, so adult domains can be blocked before a connection is opened." />
         </service>
 
+        <!--
+          Keeps the protection process alive so the monitor and DNS filter survive memory
+          pressure and restart after a reboot.
+        -->
+        <service
+            android:name=".monitoring.GuardForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the recovery protection process alive." />
+        </service>
+
+        <receiver
+            android:name=".monitoring.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".monitoring.ContentMonitoringAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
+            android:exported="true"
+            android:stopWithTask="false">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
