@@ -24,6 +24,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,12 +36,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.breakfree.recovr.BuildConfig
 import com.aistudio.breakfree.recovr.localization.Translations
 import com.aistudio.breakfree.recovr.model.AppLanguage
+import com.aistudio.breakfree.recovr.monitoring.AccessibilityMonitor
 import com.aistudio.breakfree.recovr.monitoring.DnsShield
 import com.aistudio.breakfree.recovr.monitoring.ExplicitContentDetector
 import com.aistudio.breakfree.recovr.monitoring.MonitoringManager
@@ -125,7 +130,25 @@ fun MonitoringSettingsScreen(
     var showAppsConsentDialog by remember { mutableStateOf(false) }
     var showDnsConsentDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { viewModel.refreshDnsShield() }
+    // Live state of the two system gates the content monitor depends on. Re-read on
+    // resume, because both are flipped on a system screen.
+    var accessibilityEnabled by remember { mutableStateOf(AccessibilityMonitor.isEnabled(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                accessibilityEnabled = AccessibilityMonitor.isEnabled(context)
+                viewModel.refreshDnsShield()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(Unit) {
+        accessibilityEnabled = AccessibilityMonitor.isEnabled(context)
+        viewModel.refreshDnsShield()
+    }
 
     val releaseDateLabel = remember(language) {
         UninstallLock.releaseDateLabel(context, language)
@@ -417,6 +440,36 @@ fun MonitoringSettingsScreen(
                                 onCheckedChange = { viewModel.setKeywordFilterEnabled(it) },
                                 testTag = "toggle_explicit_filter"
                             )
+                        }
+                    )
+                }
+            }
+
+            // ---------------------------------------------------------------
+            // Setup checklist — shown until the monitor can actually run
+            // ---------------------------------------------------------------
+            if (!accessibilityEnabled || !monitoringConsentGranted) {
+                item {
+                    SetupChecklistCard(
+                        language = language,
+                        accessibilityEnabled = accessibilityEnabled,
+                        monitoringConsentGranted = monitoringConsentGranted,
+                        dnsConsentGranted = dnsShieldConsentGranted,
+                        dnsActive = dnsShieldState.status == DnsShield.Status.ACTIVE,
+                        onAllowRestricted = { AccessibilityMonitor.openAppInfo(context) },
+                        onEnableMonitor = {
+                            if (monitoringConsentGranted) {
+                                AccessibilityMonitor.openAccessibilitySettings(context)
+                            } else {
+                                showMonitoringConsentDialog = true
+                            }
+                        },
+                        onEnableDns = {
+                            if (dnsShieldConsentGranted) {
+                                startDnsShield()
+                            } else {
+                                showDnsConsentDialog = true
+                            }
                         }
                     )
                 }
@@ -881,6 +934,126 @@ private fun DnsShieldConsentDialog(
         titleContentColor = TextPrimary,
         textContentColor = TextSecondary
     )
+}
+
+/**
+ * A compact checklist shown until the content monitor can actually run. Each row either
+ * shows a green tick or a button that takes the user to the exact system screen that
+ * unblocks it, so nobody has to guess where "Allow restricted settings" lives.
+ */
+@Composable
+private fun SetupChecklistCard(
+    language: AppLanguage,
+    accessibilityEnabled: Boolean,
+    monitoringConsentGranted: Boolean,
+    dnsConsentGranted: Boolean,
+    dnsActive: Boolean,
+    onAllowRestricted: () -> Unit,
+    onEnableMonitor: () -> Unit,
+    onEnableDns: () -> Unit
+) {
+    SoftCard(accent = SoftGold, contentPadding = 16.dp) {
+        Text(
+            text = Translations.t("setup_checklist_title", language),
+            color = TextPrimary,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = Translations.t("setup_checklist_desc", language),
+            color = TextMuted,
+            fontSize = 11.5.sp,
+            lineHeight = 16.sp
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Step 1: restricted settings (Android 13+, sideloaded installs only).
+        if (AccessibilityMonitor.restrictedSettingsApply() && !accessibilityEnabled) {
+            ChecklistRow(
+                language = language,
+                done = false,
+                titleKey = "setup_step_restricted",
+                actionKey = "setup_open_app_info",
+                testTag = "checklist_restricted_btn",
+                onAction = onAllowRestricted
+            )
+            ChecklistDivider()
+        }
+
+        // Step 2: content monitor.
+        ChecklistRow(
+            language = language,
+            done = accessibilityEnabled && monitoringConsentGranted,
+            titleKey = "setup_step_monitor",
+            actionKey = if (monitoringConsentGranted) "setup_open_accessibility" else "setup_grant_consent",
+            testTag = "checklist_monitor_btn",
+            onAction = onEnableMonitor
+        )
+
+        ChecklistDivider()
+
+        // Step 3: DNS shield.
+        ChecklistRow(
+            language = language,
+            done = dnsActive,
+            titleKey = "setup_step_dns",
+            actionKey = if (dnsConsentGranted) "setup_turn_on" else "setup_grant_consent",
+            testTag = "checklist_dns_btn",
+            onAction = onEnableDns
+        )
+    }
+}
+
+@Composable
+private fun ChecklistRow(
+    language: AppLanguage,
+    done: Boolean,
+    titleKey: String,
+    actionKey: String,
+    testTag: String,
+    onAction: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (done) {
+            IconTile(type = CostumeIconType.CHECK, tint = GreenCalmLight, size = 30.dp)
+        } else {
+            IconTile(type = CostumeIconType.INFO, tint = SoftGold, size = 30.dp)
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = Translations.t(titleKey, language),
+            color = if (done) TextSecondary else TextPrimary,
+            fontSize = 13.sp,
+            fontWeight = if (done) FontWeight.Normal else FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
+        if (!done) {
+            TextButton(onClick = onAction, modifier = Modifier.testTag(testTag)) {
+                Text(
+                    text = Translations.t(actionKey, language),
+                    color = SoftGold,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        } else {
+            Pill(
+                text = Translations.t("setup_on", language),
+                color = GreenCalmLight,
+                icon = CostumeIconType.CHECK
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChecklistDivider() {
+    Spacer(modifier = Modifier.height(10.dp))
 }
 
 /**

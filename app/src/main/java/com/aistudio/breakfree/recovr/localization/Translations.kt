@@ -248,6 +248,21 @@ object Translations {
             "The 90-day uninstall lock is never enabled here — it stays a separate, explicit choice.",
             "قفل الإزالة لمدة 90 يوماً لا يُفعّل من هنا — يبقى خياراً منفصلاً وصريحاً."
         ),
+        "setup_checklist_title" to Pair("Finish setting up your Shield", "أكمل إعداد درعك"),
+        "setup_checklist_desc" to Pair(
+            "These steps unlock the protection. Each button opens the exact system screen.",
+            "هذه الخطوات تفعّل الحماية. كل زر يفتح شاشة النظام المطلوبة."
+        ),
+        "setup_step_restricted" to Pair(
+            "Allow restricted settings (Android 13+)",
+            "السماح بالإعدادات المقيّدة (أندرويد 13+)"
+        ),
+        "setup_step_monitor" to Pair("Enable the content monitor", "تفعيل رصد المحتوى"),
+        "setup_step_dns" to Pair("Enable the DNS shield", "تفعيل درع DNS"),
+        "setup_open_app_info" to Pair("Open app info", "فتح معلومات التطبيق"),
+        "setup_open_accessibility" to Pair("Open accessibility", "فتح إمكانية الوصول"),
+        "setup_grant_consent" to Pair("Grant consent", "منح الموافقة"),
+        "setup_turn_on" to Pair("Turn on", "تفعيل"),
         "dns_shield_other_host" to Pair(
             "Private DNS is currently set to {host}.",
             "DNS الخاص مضبوط حالياً على {host}."
