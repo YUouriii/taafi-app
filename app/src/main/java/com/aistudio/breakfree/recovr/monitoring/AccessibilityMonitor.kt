@@ -33,7 +33,9 @@ object AccessibilityMonitor {
     }
 
     fun openAccessibilitySettings(context: Context) {
+        val hint = if (isArabic(context)) "ابحث عن «أدوات» في القائمة" else "Look for \"Utilities\" in the list"
         try {
+            android.widget.Toast.makeText(context, hint, android.widget.Toast.LENGTH_LONG).show()
             context.startActivity(
                 Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -44,7 +46,9 @@ object AccessibilityMonitor {
     }
 
     fun openAppInfo(context: Context) {
+        val hint = if (isArabic(context)) "يظهر التطبيق باسم «أدوات»" else "The app appears as \"Utilities\""
         try {
+            android.widget.Toast.makeText(context, hint, android.widget.Toast.LENGTH_LONG).show()
             context.startActivity(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                     .setData(Uri.parse("package:${context.packageName}"))
@@ -60,6 +64,10 @@ object AccessibilityMonitor {
             }
         }
     }
+
+    private fun isArabic(context: Context): Boolean =
+        context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
+            .getString("selected_language", "en") == "ar"
 
     /** True on Android 13+, where restricted settings exist. */
     fun restrictedSettingsApply(): Boolean =

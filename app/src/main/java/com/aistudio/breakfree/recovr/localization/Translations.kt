@@ -53,6 +53,9 @@ object Translations {
         "grace_relapse_title" to Pair("Exposure Exceeded 2 Minutes", "تجاوزت فترة السماح دقيقتين"),
         "grace_relapse_msg" to Pair("Continuous exposure lasted past 120 seconds. Streak has been reset, but remember: your prior healing isn't lost. Take a deep breath and rise again.", "استمر التعرض لأكثر من 120 ثانية. تم إعادة ضبط العداد، لكن تذكر: لم تفقد قوتك السابقة. خذ نفساً عميقاً وابدأ من جديد."),
         "close" to Pair("Close", "إغلاق"),
+        "cancel" to Pair("Cancel", "إلغاء"),
+        "save" to Pair("Save", "حفظ"),
+        "clear" to Pair("Clear", "مسح"),
         "continue_journey" to Pair("Continue Journey", "مواصلة المسيرة"),
 
         // System overlay (drawn over the monitored app via SYSTEM_ALERT_WINDOW)
@@ -233,6 +236,10 @@ object Translations {
             "Monitoring and the DNS shield stay active in the background.",
             "رصد المحتوى ودرع DNS يبقيان نشطين في الخلفية."
         ),
+        "guard_service_text_dns" to Pair(
+            "Monitoring and the DNS shield are active.",
+            "رصد المحتوى ودرع DNS نشطان."
+        ),
         // Stealth / Disguise Mode
         "stealth_lock_title" to Pair("Unlock BreakFree", "افتح تعافي"),
         "stealth_lock_subtitle" to Pair("Enter your PIN to continue", "أدخل رمز PIN للمتابعة"),
@@ -284,10 +291,48 @@ object Translations {
         ),
         "stealth_service_title" to Pair("Service is running", "الخدمة تعمل"),
         "stealth_service_text" to Pair(
-            "Background service is active.",
-            "خدمة الخلفية نشطة."
+            "Running in the background.",
+            "يعمل في الخلفية."
+        ),
+        "stealth_service_text_dns" to Pair(
+            "Running in the background.",
+            "يعمل في الخلفية."
         ),
         "stealth_vpn_session" to Pair("Private DNS", "DNS خاص"),
+        "stealth_disguised_as" to Pair("Disguised as: {preset}", "التنكر: {preset}"),
+        "stealth_auto_lock" to Pair("Auto-lock after", "القفل التلقائي بعد"),
+        "stealth_auto_lock_off" to Pair("Off", "معطّل"),
+        "stealth_auto_lock_1m" to Pair("1 min", "دقيقة"),
+        "stealth_auto_lock_5m" to Pair("5 min", "5 دقائق"),
+        "stealth_auto_lock_15m" to Pair("15 min", "15 دقيقة"),
+        "stealth_duress_title" to Pair("Duress PIN", "رمز الإكراه"),
+        "stealth_duress_set" to Pair("Set", "مفعّل"),
+        "stealth_duress_not_set" to Pair("Not set", "غير مفعّل"),
+        "stealth_duress_change" to Pair("Change", "تغيير"),
+        "stealth_duress_body" to Pair(
+            "A second PIN that opens a fake (empty) dashboard when you are coerced. Optionally wipes data if enabled below.",
+            "رمز ثانٍ يفتح لوحة تحكم وهمية (فارغة) عند إجبارك. يمكنه مسح البيانات اختيارياً إذا فُعّل أدناه."
+        ),
+        "stealth_wipe_on_duress" to Pair("Wipe data on duress", "مسح البيانات عند الإكراه"),
+        "stealth_pin_mismatch" to Pair("PINs do not match.", "الرمزان غير متطابقين."),
+        "stealth_duress_failed" to Pair("Failed to set PIN.", "تعذّر تعيين الرمز."),
+        "stealth_confirm_pin" to Pair("Confirm PIN", "تأكيد الرمز"),
+        "stealth_disable_title" to Pair("Turn off Stealth Mode?", "إيقاف وضع التخفي؟"),
+        "stealth_disable_body" to Pair(
+            "The real BreakFree icon and name will come back on your home screen. Enter your PIN to confirm.",
+            "ستعود أيقونة تعافي واسمه الحقيقيان إلى الشاشة الرئيسية. أدخل رمز PIN للتأكيد."
+        ),
+        "stealth_disable_wrong_pin" to Pair("Wrong PIN", "رمز PIN خاطئ"),
+        "stealth_lock_biometric_title" to Pair("Unlock", "فتح"),
+        "stealth_lock_biometric_subtitle" to Pair(
+            "Use your fingerprint or device PIN",
+            "استخدم بصمتك أو رمز الجهاز"
+        ),
+        "stealth_duress_welcome" to Pair("Welcome", "أهلاً بك"),
+        "stealth_duress_empty" to Pair(
+            "No activity yet. Start your first check-in to begin.",
+            "لا يوجد نشاط بعد. ابدأ أول تسجيل يومي لك."
+        ),
 
         // First-run Shield setup
         "setup_title" to Pair("Set up your Shield", "جهّز درعك"),
@@ -323,6 +368,10 @@ object Translations {
         "setup_checklist_desc" to Pair(
             "These steps unlock the protection. Each button opens the exact system screen.",
             "هذه الخطوات تفعّل الحماية. كل زر يفتح شاشة النظام المطلوبة."
+        ),
+        "setup_identity_hint" to Pair(
+            "In Android Settings this app appears as \"Utilities\" (package com.aistudio.breakfree.recovr). That is intentional and protects your privacy in Stealth Mode — look for \"Utilities\" in every system list.",
+            "في إعدادات أندرويد يظهر هذا التطبيق باسم «أدوات» (الحزمة com.aistudio.breakfree.recovr). هذا مقصود لحماية خصوصيتك في وضع التخفي — ابحث عن «أدوات» في كل قائمة نظام."
         ),
         "setup_step_restricted" to Pair(
             "Allow restricted settings (Android 13+)",
@@ -457,6 +506,34 @@ object Translations {
         "settings_check_updates" to Pair("Check for updates", "البحث عن تحديثات"),
         "settings_checking_updates" to Pair("Checking…", "جارٍ البحث…"),
         "settings_up_to_date" to Pair("You're up to date", "أنت على آخر إصدار"),
+        "update_error_install_permission" to Pair(
+            "Grant \"Install unknown apps\" for BreakFree, then try again.",
+            "امنح «تثبيت التطبيقات غير المعروفة» لتعافي، ثم أعد المحاولة."
+        ),
+        "update_error_download" to Pair(
+            "Download failed. Check your connection and try again.",
+            "فشل التنزيل. تحقّق من اتصالك ثم أعد المحاولة."
+        ),
+        "update_error_rate_limit" to Pair(
+            "GitHub rate limit reached. Try again later.",
+            "تم بلوغ حدّ طلبات GitHub. أعد المحاولة لاحقاً."
+        ),
+        "update_error_no_release" to Pair(
+            "No release found. Publish a release on GitHub first.",
+            "لم يُعثر على إصدار منشور. انشر إصداراً على GitHub أولاً."
+        ),
+        "update_error_server" to Pair(
+            "Server returned HTTP {code}",
+            "أعاد الخادم رمز HTTP {code}"
+        ),
+        "update_error_parse" to Pair(
+            "Could not parse the update response.",
+            "تعذّرت قراءة استجابة التحديث."
+        ),
+        "update_error_network" to Pair(
+            "Network error. Check your connection and try again.",
+            "خطأ في الشبكة. تحقّق من اتصالك ثم أعد المحاولة."
+        ),
         "settings_auto_check_updates" to Pair("Check automatically", "بحث تلقائي"),
         "settings_language_desc" to Pair("Choose the language of the app", "اختر لغة التطبيق"),
         "settings_protection" to Pair("Protection", "الحماية"),

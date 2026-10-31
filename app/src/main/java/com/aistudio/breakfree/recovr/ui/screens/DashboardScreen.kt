@@ -102,14 +102,14 @@ fun DashboardScreen(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "Welcome",
+                    text = Translations.t("stealth_duress_welcome", language),
                     color = TextPrimary,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "No activity yet. Start your first check-in to begin.",
+                    text = Translations.t("stealth_duress_empty", language),
                     color = TextMuted,
                     fontSize = 13.sp
                 )

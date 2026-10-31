@@ -3,6 +3,8 @@ package com.aistudio.breakfree.recovr.data
 import android.content.Context
 import android.util.Log
 import com.aistudio.breakfree.recovr.R
+import com.aistudio.breakfree.recovr.model.CommunityCategory
+import com.aistudio.breakfree.recovr.model.CommunityPost
 import com.aistudio.breakfree.recovr.model.DailyCheckIn
 import com.aistudio.breakfree.recovr.model.UserProfile
 import com.google.firebase.Firebase
@@ -188,6 +190,89 @@ class FirestoreRecoveryRepository(
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.GET, docRef.path)
             throw e
+        }
+    }
+
+    // Observe the global community feed (newest first).
+    fun observeCommunityPosts(): Flow<List<CommunityPost>> = flow {
+        val query = db.collection("community_posts")
+            .orderBy("timestampMillis", Query.Direction.DESCENDING)
+            .limit(50)
+
+        emitAll(
+            query.snapshots()
+                .map { snapshot ->
+                    snapshot.documents.mapNotNull { doc ->
+                        try {
+                            CommunityPost(
+                                id = doc.id,
+                                authorAlias = doc.getString("authorAlias") ?: "",
+                                authorAvatarBg = doc.getLong("authorAvatarBg") ?: 0xFF10B981L,
+                                daysClean = (doc.getLong("daysClean") ?: 0L).toInt(),
+                                category = try {
+                                    CommunityCategory.valueOf(doc.getString("category") ?: "DAILY_MOTIVATION")
+                                } catch (e: Exception) {
+                                    CommunityCategory.DAILY_MOTIVATION
+                                },
+                                contentEn = doc.getString("contentEn") ?: "",
+                                contentAr = doc.getString("contentAr") ?: "",
+                                timestampMillis = doc.getLong("timestampMillis") ?: 0L,
+                                fistBumps = (doc.getLong("fistBumps") ?: 0L).toInt(),
+                                userCheered = false
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                }
+                .catch { error ->
+                    if (error is Exception) {
+                        handleFirestoreError(error, OperationType.LIST, "community_posts")
+                    }
+                    throw error
+                }
+        )
+    }
+
+    // Publish a new community post. Returns the server-assigned id (or null on failure).
+    suspend fun saveCommunityPost(post: CommunityPost): String? {
+        return try {
+            val docRef = db.collection("community_posts").document(post.id)
+            val payload = hashMapOf<String, Any>(
+                "authorAlias" to post.authorAlias,
+                "authorAvatarBg" to post.authorAvatarBg,
+                "daysClean" to post.daysClean,
+                "category" to post.category.name,
+                "contentEn" to post.contentEn,
+                "contentAr" to post.contentAr,
+                "timestampMillis" to post.timestampMillis,
+                "fistBumps" to post.fistBumps,
+                "createdAt" to FieldValue.serverTimestamp()
+            )
+            docRef.set(payload).await()
+            Log.d("FirestoreRepo", "Community post saved: ${post.id}")
+            post.id
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, "community_posts/${post.id}")
+            null
+        }
+    }
+
+    // Increment the fist-bump count for a post.
+    suspend fun toggleFistBump(postId: String, currentlyCheered: Boolean) {
+        try {
+            val docRef = db.collection("community_posts").document(postId)
+            if (currentlyCheered) {
+                docRef.update("fistBumps", FieldValue.increment(-1)).await()
+            } else {
+                docRef.update("fistBumps", FieldValue.increment(1)).await()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "community_posts/$postId")
         }
     }
 }

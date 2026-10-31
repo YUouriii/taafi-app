@@ -390,7 +390,8 @@ fun SettingsScreen(
                     if (stealthEnabled) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "Disguised as: ${stealthPrefs.disguisePreset.label}",
+                            text = Translations.t("stealth_disguised_as", language)
+                                .replace("{preset}", stealthPrefs.disguisePreset.label),
                             color = TextMuted,
                             fontSize = 11.5.sp
                         )
@@ -409,14 +410,19 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "Auto-lock after",
+                            text = Translations.t("stealth_auto_lock", language),
                             color = TextSecondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(0 to "Off", 1 to "1m", 5 to "5m", 15 to "15m").forEach { (mins, label) ->
+                            listOf(
+                                0 to Translations.t("stealth_auto_lock_off", language),
+                                1 to Translations.t("stealth_auto_lock_1m", language),
+                                5 to Translations.t("stealth_auto_lock_5m", language),
+                                15 to Translations.t("stealth_auto_lock_15m", language)
+                            ).forEach { (mins, label) ->
                                 val selected = stealthPrefs.autoLockMinutes == mins
                                 TextButton(onClick = { stealthPrefs.autoLockMinutes = mins }) {
                                     Text(
@@ -434,20 +440,28 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Duress PIN",
+                                    text = Translations.t("stealth_duress_title", language),
                                     color = TextPrimary,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = if (com.aistudio.breakfree.recovr.stealth.StealthManager.hasDuressPin(context)) "Set" else "Not set",
+                                    text = if (com.aistudio.breakfree.recovr.stealth.StealthManager.hasDuressPin(context)) {
+                                        Translations.t("stealth_duress_set", language)
+                                    } else {
+                                        Translations.t("stealth_duress_not_set", language)
+                                    },
                                     color = TextMuted,
                                     fontSize = 11.sp
                                 )
                             }
                             TextButton(onClick = { showDuressDialog = true }) {
                                 Text(
-                                    text = if (com.aistudio.breakfree.recovr.stealth.StealthManager.hasDuressPin(context)) "Change" else "Set",
+                                    text = if (com.aistudio.breakfree.recovr.stealth.StealthManager.hasDuressPin(context)) {
+                                        Translations.t("stealth_duress_change", language)
+                                    } else {
+                                        Translations.t("stealth_duress_set", language)
+                                    },
                                     color = SoftGold,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
@@ -456,7 +470,7 @@ fun SettingsScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Wipe data on duress",
+                                text = Translations.t("stealth_wipe_on_duress", language),
                                 color = TextPrimary,
                                 fontSize = 12.sp,
                                 modifier = Modifier.weight(1f)
@@ -496,14 +510,14 @@ fun SettingsScreen(
                 item {
                     AlertDialog(
                         onDismissRequest = { showDuressDialog = false },
-                        title = { Text("Duress PIN", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                        title = { Text(Translations.t("stealth_duress_title", language), color = TextPrimary, fontWeight = FontWeight.Bold) },
                         text = {
                             var duressPin by remember { mutableStateOf("") }
                             var duressConfirm by remember { mutableStateOf("") }
                             var duressError by remember { mutableStateOf<String?>(null) }
                             Column {
                                 Text(
-                                    text = "A second PIN that opens a fake (empty) dashboard when coerced. Optionally wipes data if enabled above.",
+                                    text = Translations.t("stealth_duress_body", language),
                                     color = TextMuted,
                                     fontSize = 12.sp
                                 )
@@ -511,7 +525,7 @@ fun SettingsScreen(
                                 OutlinedTextField(
                                     value = duressPin,
                                     onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) duressPin = it },
-                                    label = { Text("Duress PIN") },
+                                    label = { Text(Translations.t("stealth_duress_title", language)) },
                                     visualTransformation = PasswordVisualTransformation(),
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
@@ -520,7 +534,7 @@ fun SettingsScreen(
                                 OutlinedTextField(
                                     value = duressConfirm,
                                     onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) duressConfirm = it },
-                                    label = { Text("Confirm") },
+                                    label = { Text(Translations.t("stealth_confirm_pin", language)) },
                                     visualTransformation = PasswordVisualTransformation(),
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
@@ -535,23 +549,23 @@ fun SettingsScreen(
                                         com.aistudio.breakfree.recovr.stealth.StealthManager.clearDuressPin(context)
                                         showDuressDialog = false
                                     }) {
-                                        Text("Clear", color = DangerRed, fontSize = 12.sp)
+                                        Text(Translations.t("clear", language), color = DangerRed, fontSize = 12.sp)
                                     }
                                     Spacer(modifier = Modifier.weight(1f))
                                     TextButton(onClick = {
                                         if (duressPin.length !in 4..6) {
-                                            duressError = "PIN must be 4-6 digits."
+                                            duressError = Translations.t("stealth_pin_required", language)
                                             return@TextButton
                                         }
                                         if (duressPin != duressConfirm) {
-                                            duressError = "PINs do not match."
+                                            duressError = Translations.t("stealth_pin_mismatch", language)
                                             return@TextButton
                                         }
                                         val ok = com.aistudio.breakfree.recovr.stealth.StealthManager.setDuressPin(context, duressPin)
                                         if (ok) showDuressDialog = false
-                                        else duressError = "Failed to set PIN."
+                                        else duressError = Translations.t("stealth_duress_failed", language)
                                     }) {
-                                        Text("Save", color = GreenCalmLight, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text(Translations.t("save", language), color = GreenCalmLight, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 }
                             }

@@ -966,6 +966,13 @@ private fun SetupChecklistCard(
             fontSize = 11.5.sp,
             lineHeight = 16.sp
         )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = Translations.t("setup_identity_hint", language),
+            color = SoftGold,
+            fontSize = 11.sp,
+            lineHeight = 15.sp
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 

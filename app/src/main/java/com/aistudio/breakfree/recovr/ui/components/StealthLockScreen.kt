@@ -72,7 +72,7 @@ fun StealthLockScreen(
     // Auto-trigger biometric on first show if available.
     androidx.compose.runtime.LaunchedEffect(Unit) {
         if (biometricAvailable && activity != null) {
-            showBiometric(activity) { success ->
+            showBiometric(activity, language) { success ->
                 if (success) {
                     StealthManager.unlock(activity)
                     onUnlock()
@@ -187,7 +187,7 @@ fun StealthLockScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = {
                     if (activity != null) {
-                        showBiometric(activity) { success ->
+                        showBiometric(activity, language) { success ->
                             if (success) {
                                 StealthManager.unlock(activity)
                                 onUnlock()
@@ -206,7 +206,11 @@ fun StealthLockScreen(
     }
 }
 
-private fun showBiometric(activity: FragmentActivity, onResult: (Boolean) -> Unit) {
+private fun showBiometric(
+    activity: FragmentActivity,
+    language: AppLanguage,
+    onResult: (Boolean) -> Unit
+) {
     val executor = ContextCompat.getMainExecutor(activity)
     val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
@@ -220,8 +224,8 @@ private fun showBiometric(activity: FragmentActivity, onResult: (Boolean) -> Uni
         }
     })
     val info = BiometricPrompt.PromptInfo.Builder()
-        .setTitle("Unlock BreakFree")
-        .setSubtitle("Use your fingerprint or device PIN")
+        .setTitle(Translations.t("stealth_lock_biometric_title", language))
+        .setSubtitle(Translations.t("stealth_lock_biometric_subtitle", language))
         .setAllowedAuthenticators(
             BiometricManager.Authenticators.BIOMETRIC_STRONG or
                 BiometricManager.Authenticators.DEVICE_CREDENTIAL

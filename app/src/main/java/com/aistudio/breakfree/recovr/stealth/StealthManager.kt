@@ -54,12 +54,32 @@ object StealthManager {
     private fun wipeRecoveryData(context: Context) {
         // Clear monitoring prefs and streak/check-in data for the current account.
         try {
-            context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE).edit().clear().apply()
-            // Reset stealth lock state so the app doesn't stay in duress mode forever.
-            prefs(context).stealthEnabled = false
-            _duressMode.value = false
+            val plainPrefs = context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
+            // The 90-day uninstall commitment is a separate, deliberate choice: wiping
+            // recovery history must not leave the administrator active with no release
+            // date (which would make the lock permanent).
+            val lockStartedAt = plainPrefs.getLong("uninstall_lock_started_at", 0L)
+            val lockCompletedAt = plainPrefs.getLong("uninstall_lock_completed_at", 0L)
+            plainPrefs.edit().clear().apply()
+            if (lockStartedAt > 0L || lockCompletedAt > 0L) {
+                plainPrefs.edit()
+                    .putLong("uninstall_lock_started_at", lockStartedAt)
+                    .putLong("uninstall_lock_completed_at", lockCompletedAt)
+                    .apply()
+            }
+
+            // The disguise and the PIN stay in place on purpose: a duress wipe must not
+            // reveal the real app on the launcher or drop the user out of the decoy while
+            // someone is watching. Only the recovery history is destroyed.
         } catch (e: Exception) {
             android.util.Log.w(TAG, "Wipe failed", e)
+        }
+    }
+
+    /** Disables every decoy launcher entry (used when the disguise is removed). */
+    private fun disableAllAliases(context: Context) {
+        DisguisePreset.entries.forEach { preset ->
+            setEnabled(context, preset.aliasClass, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
         }
     }
 
@@ -197,9 +217,9 @@ object StealthManager {
 
     /** Applies the neutral launcher icon/name for [preset]. */
     fun applyDisguise(context: Context, preset: DisguisePreset) {
-        val pm = context.packageManager
-        // Enable the alias first, then disable the real launcher entry, so the app
-        // never disappears from the launcher mid-switch.
+        // Clear any stale decoy first, then enable the chosen alias and disable the real
+        // launcher entry, so the app never disappears from the launcher mid-switch.
+        disableAllAliases(context)
         setEnabled(context, preset.aliasClass, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
         setEnabled(context, MAIN_ACTIVITY, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
         Log.i(TAG, "Disguise applied: ${preset.label}")
@@ -207,10 +227,9 @@ object StealthManager {
 
     /** Restores the real launcher icon/name. */
     fun removeDisguise(context: Context, preset: DisguisePreset) {
-        val pm = context.packageManager
         setEnabled(context, MAIN_ACTIVITY, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-        setEnabled(context, preset.aliasClass, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
-        Log.i(TAG, "Disguise removed")
+        disableAllAliases(context)
+        Log.i(TAG, "Disguise removed (${preset.label})")
     }
 
     /**
@@ -220,10 +239,23 @@ object StealthManager {
     fun syncDisguise(context: Context) {
         val p = prefs(context)
         if (p.stealthEnabled) {
+            // Only the chosen alias may be enabled; a preset changed while stealth was on
+            // must not leave a second decoy icon on the launcher.
+            DisguisePreset.entries
+                .filter { it != p.disguisePreset }
+                .forEach { stale ->
+                    setEnabled(
+                        context,
+                        stale.aliasClass,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                    )
+                }
             applyDisguise(context, p.disguisePreset)
         } else {
-            // Make sure the real entry is enabled (updates can re-enable aliases).
+            // Make sure the real entry is enabled and no decoy is left behind (updates can
+            // re-enable aliases, and a previous toggle may have been interrupted).
             setEnabled(context, MAIN_ACTIVITY, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+            disableAllAliases(context)
         }
     }
 

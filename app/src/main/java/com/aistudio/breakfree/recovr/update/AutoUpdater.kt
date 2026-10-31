@@ -8,6 +8,8 @@ import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.aistudio.breakfree.recovr.BuildConfig
+import com.aistudio.breakfree.recovr.localization.Translations
+import com.aistudio.breakfree.recovr.model.AppLanguage
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -53,9 +55,34 @@ object AutoUpdater {
         val releaseNotes: String,
         val htmlUrl: String
     ) {
-        fun isNewerThan(currentCode: Int, currentName: String): Boolean =
-            versionCode > currentCode ||
-                (versionCode == 0 && versionName.isNotBlank() && versionName != currentName)
+        /**
+         * True only when the remote build is strictly newer. A release whose tag cannot be
+         * read as a version code is compared by name, and an older name never counts as an
+         * update — otherwise a stale tag would offer a downgrade.
+         */
+        fun isNewerThan(currentCode: Int, currentName: String): Boolean {
+            if (versionCode > 0) {
+                if (versionCode > currentCode) return true
+                if (versionCode < currentCode) return false
+            }
+            if (versionName.isBlank()) return false
+            return compareVersionNames(versionName, currentName) > 0
+        }
+    }
+
+    /** Numeric dotted-version comparison ("1.10" is newer than "1.9"). */
+    internal fun compareVersionNames(a: String, b: String): Int {
+        fun parts(value: String): List<Int> = value
+            .split('.', '-', '+')
+            .map { segment -> segment.takeWhile { it.isDigit() }.toIntOrNull() ?: 0 }
+        val left = parts(a)
+        val right = parts(b)
+        for (i in 0 until maxOf(left.size, right.size)) {
+            val l = left.getOrElse(i) { 0 }
+            val r = right.getOrElse(i) { 0 }
+            if (l != r) return l.compareTo(r)
+        }
+        return 0
     }
 
     fun checkUrl(context: Context): String =
@@ -91,6 +118,7 @@ object AutoUpdater {
      */
     fun check(
         context: Context,
+        language: AppLanguage,
         onResult: (UpdateInfo?) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -106,9 +134,10 @@ object AutoUpdater {
                 val code = connection.responseCode
                 if (code !in 200..299) {
                     val msg = when (code) {
-                        403 -> "GitHub rate limit reached. Try again later."
-                        404 -> "No release found. Publish a release on GitHub first."
-                        else -> "Server returned HTTP $code"
+                        403 -> Translations.t("update_error_rate_limit", language)
+                        404 -> Translations.t("update_error_no_release", language)
+                        else -> Translations.t("update_error_server", language)
+                            .replace("{code}", code.toString())
                     }
                     onError(msg)
                     connection.disconnect()
@@ -118,7 +147,7 @@ object AutoUpdater {
                 connection.disconnect()
 
                 val info = parse(body) ?: run {
-                    onError("Could not parse the update response")
+                    onError(Translations.t("update_error_parse", language))
                     return@Thread
                 }
 
@@ -132,7 +161,7 @@ object AutoUpdater {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Update check failed", e)
-                onError(e.message ?: "Network error")
+                onError(Translations.t("update_error_network", language))
             }
         }.start()
     }

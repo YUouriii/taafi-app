@@ -68,7 +68,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -107,6 +106,7 @@ import com.aistudio.breakfree.recovr.ui.screens.MonitoringSettingsScreen
 import com.aistudio.breakfree.recovr.ui.screens.SettingsScreen
 import com.aistudio.breakfree.recovr.ui.theme.BlackCard
 import com.aistudio.breakfree.recovr.ui.theme.BlackElevated
+import com.aistudio.breakfree.recovr.ui.theme.BlackSurface
 import com.aistudio.breakfree.recovr.ui.theme.DangerRed
 import com.aistudio.breakfree.recovr.ui.theme.GlassBottomBarBg
 import com.aistudio.breakfree.recovr.ui.theme.GlassBorderSubtle
@@ -130,10 +130,10 @@ class MainActivity : FragmentActivity() {
     private val viewModel: BreakFreeViewModel by viewModels()
 
     /**
-     * Lint's `InvalidFragmentVersionForActivityResult` check assumes an old Fragment
-     * dependency. This app has none — it is a plain [ComponentActivity], which is the
-     * parent class of FragmentActivity, so no fragment code is involved and the
-     * ActivityResult API is safe here.
+     * The activity is a [FragmentActivity] only because [androidx.biometric.BiometricPrompt]
+     * needs one for the Stealth Mode unlock. No fragments are used, so the ActivityResult
+     * API is safe here; lint's `InvalidFragmentVersionForActivityResult` check assumes an
+     * old Fragment dependency.
      */
     @SuppressLint("InvalidFragmentVersionForActivityResult")
     private val notificationPermissionLauncher =
@@ -192,6 +192,10 @@ class MainActivity : FragmentActivity() {
         StealthManager.syncDisguise(this)
         if (StealthManager.isStealthActive(this)) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            // Leaving the flag on after Stealth Mode is turned off would keep blocking
+            // screenshots/recents thumbnails for no reason.
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         }
 
         // Keep the protection process alive even when the app is closed.
@@ -266,6 +270,8 @@ fun BreakFreeApp(
     // Stealth Mode lock gate.
     val context = LocalContext.current
     val stealthLocked by StealthManager.isLocked.collectAsState()
+    // Duress PIN was used: cover the whole app with a plausible empty dashboard.
+    val duressMode by StealthManager.duressMode.collectAsState()
     LaunchedEffect(Unit) { StealthManager.restoreLockState(context) }
 
     // Auto-lock on resume.
@@ -273,7 +279,13 @@ fun BreakFreeApp(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                if (StealthManager.shouldAutoLock(context)) StealthManager.lock()
+                // A duress unlock must not survive a trip to the background: lock again so
+                // the decoy comes back and the real owner can unlock normally.
+                if (StealthManager.duressMode.value) {
+                    StealthManager.lock()
+                } else if (StealthManager.shouldAutoLock(context)) {
+                    StealthManager.lock()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -331,32 +343,6 @@ fun BreakFreeApp(
                 language = language,
                 onSelect = { selectedTab = it }
             )
-        }
-
-        // Stealth Mode lock gate: blocks the dashboard until authenticated.
-        // Stealth Mode lock gate: shows a decoy by default; long-press the calculator
-        // display to reveal the PIN entry.
-        if (stealthLocked && StealthManager.lockRequired(context)) {
-            var showPin by remember { mutableStateOf(false) }
-            if (showPin) {
-                StealthLockScreen(
-                    language = language,
-                    onUnlock = {
-                        StealthManager.unlock(context)
-                        showPin = false
-                    }
-                )
-            } else {
-                StealthEntryScreen(
-                    language = language,
-                    preset = StealthManager.prefs(context).disguisePreset,
-                    onUnlockRequested = { showPin = true },
-                    onUnlocked = {
-                        StealthManager.unlock(context)
-                        showPin = false
-                    }
-                )
-            }
         }
 
         // Full screen emergency SOS modal
@@ -495,6 +481,46 @@ fun BreakFreeApp(
                 containerColor = BlackElevated,
                 titleContentColor = TextPrimary
             )
+        }
+
+        // Duress PIN: cover the whole app with a plausible empty dashboard. Drawn before
+        // the lock gate and after every dialog, so the nav bar, the other tabs, account
+        // details and any open dialog can never be reached while coerced.
+        if (duressMode) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(BlackSurface)
+            ) {
+                DashboardScreen(viewModel = viewModel)
+            }
+        }
+
+        // Stealth Mode lock gate: drawn last so nothing leaks above the decoy. It shows a
+        // decoy by default; the PIN pad opens from the disguise's own unlock gesture.
+        if (stealthLocked && StealthManager.lockRequired(context)) {
+            var showPin by remember { mutableStateOf(false) }
+            if (showPin) {
+                StealthLockScreen(
+                    language = language,
+                    onUnlock = {
+                        // StealthLockScreen has already verified the PIN (and set duress
+                        // mode when it was the duress PIN). Unlocking again here would
+                        // reset duress mode and expose the real dashboard.
+                        showPin = false
+                    }
+                )
+            } else {
+                StealthEntryScreen(
+                    language = language,
+                    preset = StealthManager.prefs(context).disguisePreset,
+                    onUnlockRequested = { showPin = true },
+                    onUnlocked = {
+                        StealthManager.unlock(context)
+                        showPin = false
+                    }
+                )
+            }
         }
     }
 }

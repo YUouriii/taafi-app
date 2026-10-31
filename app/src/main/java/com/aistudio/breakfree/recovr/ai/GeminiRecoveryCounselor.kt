@@ -164,10 +164,11 @@ class GeminiRecoveryCounselor(
         userMessage: String,
         history: List<Pair<String, String>>
     ): String = withContext(Dispatchers.IO) {
-        val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")
+        val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("x-goog-api-key", apiKey)
             connectTimeout = 30_000
             readTimeout = 30_000
             doOutput = true

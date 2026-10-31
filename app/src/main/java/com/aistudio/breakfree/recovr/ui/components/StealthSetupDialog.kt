@@ -95,7 +95,7 @@ fun StealthSetupDialog(
                 OutlinedTextField(
                     value = confirmPin,
                     onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) confirmPin = it },
-                    label = { Text("Confirm PIN") },
+                    label = { Text(Translations.t("stealth_confirm_pin", language)) },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -135,7 +135,7 @@ fun StealthSetupDialog(
                     return@TextButton
                 }
                 if (pin != confirmPin) {
-                    error = "PINs do not match."
+                    error = Translations.t("stealth_pin_mismatch", language)
                     return@TextButton
                 }
                 onConfirm(selectedPreset, pin)
@@ -149,7 +149,7 @@ fun StealthSetupDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = "Cancel", color = TextSecondary)
+                Text(text = Translations.t("cancel", language), color = TextSecondary)
             }
         },
         containerColor = BlackElevated,

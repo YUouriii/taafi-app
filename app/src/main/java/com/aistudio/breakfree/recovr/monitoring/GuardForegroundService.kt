@@ -34,8 +34,9 @@ class GuardForegroundService : Service() {
 
     companion object {
         private const val TAG = "GuardForegroundService"
-        private const val CHANNEL_ID = "guard_service"
-        private const val NOTIFICATION_ID = 0x6702
+        const val COMBINED_ID = 0x6702
+        const val CHANNEL_ID = "guard_service"
+        private const val NOTIFICATION_ID = COMBINED_ID
 
         fun start(context: Context) {
             val intent = Intent(context, GuardForegroundService::class.java)
@@ -49,20 +50,99 @@ class GuardForegroundService : Service() {
         fun stop(context: Context) {
             context.stopService(Intent(context, GuardForegroundService::class.java))
         }
+
+        fun refresh(context: Context) {
+            start(context)
+        }
+
+        /** Builds the single combined notification for both protection services. */
+        fun buildCombinedNotification(context: Context): android.app.Notification {
+            val openApp = PendingIntent.getActivity(
+                context,
+                0,
+                appLaunchIntent(context),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val language = currentLanguage(context)
+            val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(context) &&
+                com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(context)
+            val vpnRunning = DnsFilterVpnService.isRunning()
+            val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(if (stealth) R.drawable.ic_stat_neutral else R.drawable.ic_stat_shield)
+                .setContentTitle(
+                    Translations.t(if (stealth) "stealth_service_title" else "guard_service_title", language)
+                )
+                .setContentText(
+                    if (vpnRunning) {
+                        Translations.t(
+                            if (stealth) "stealth_service_text_dns" else "guard_service_text_dns",
+                            language
+                        )
+                    } else {
+                        Translations.t(
+                            if (stealth) "stealth_service_text" else "guard_service_text",
+                            language
+                        )
+                    }
+                )
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+                .setShowWhen(false)
+                .setOnlyAlertOnce(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setContentIntent(openApp)
+            if (vpnRunning) {
+                builder.addAction(
+                    0,
+                    Translations.t("dns_vpn_notification_stop", language),
+                    DnsFilterVpnService.stopIntent(context)
+                )
+            }
+            return builder.build()
+        }
+
+        fun createChannel(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            val manager = context.getSystemService(NotificationManager::class.java) ?: return
+            val language = currentLanguage(context)
+            val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(context) &&
+                com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(context)
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                Translations.t(
+                    if (stealth) "stealth_notif_channel" else "guard_service_channel",
+                    language
+                ),
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = Translations.t(
+                    if (stealth) "stealth_notif_channel_desc" else "guard_service_channel_desc",
+                    language
+                )
+                setShowBadge(false)
+            }
+            manager.createNotificationChannel(channel)
+        }
+
+        fun currentLanguage(context: Context): AppLanguage {
+            val code = context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
+                .getString("selected_language", "en")
+            return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
+        }
     }
 
     override fun onBind(intent: Intent?): android.os.IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-        createChannel()
+        Companion.createChannel(this)
         startInForeground()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Re-post on every start so a Stealth Mode toggle (which changes the wording and
         // the icon) is reflected immediately instead of waiting for a process restart.
-        createChannel()
+        Companion.createChannel(this)
         startInForeground()
         // START_STICKY: if the system kills this service, it is recreated with a null
         // intent and restarted.
@@ -93,6 +173,16 @@ class GuardForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        // Detach (keep the notification) in case the DNS filter is still running; ask it
+        // to re-post the combined notification under its own ownership.
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+        if (DnsFilterVpnService.isRunning()) {
+            try {
+                DnsFilterVpnService.refreshNotification(applicationContext)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not refresh the DNS notification", e)
+            }
+        }
         super.onDestroy()
         // Last-resort restart attempt.
         try {
@@ -120,62 +210,7 @@ class GuardForegroundService : Service() {
         } else {
             0
         }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
+        ServiceCompat.startForeground(this, COMBINED_ID, Companion.buildCombinedNotification(this), type)
     }
 
-    private fun buildNotification(): android.app.Notification {
-        val openApp = PendingIntent.getActivity(
-            this,
-            0,
-            appLaunchIntent(this),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val language = currentLanguage()
-        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
-            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(if (stealth) R.drawable.ic_stat_neutral else R.drawable.ic_stat_shield)
-            .setContentTitle(
-                Translations.t(if (stealth) "stealth_service_title" else "guard_service_title", language)
-            )
-            .setContentText(
-                Translations.t(if (stealth) "stealth_service_text" else "guard_service_text", language)
-            )
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
-            .setShowWhen(false)
-            .setOnlyAlertOnce(true)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentIntent(openApp)
-            .build()
-    }
-
-    private fun createChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        val language = currentLanguage()
-        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
-            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            Translations.t(
-                if (stealth) "stealth_notif_channel" else "guard_service_channel",
-                language
-            ),
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = Translations.t(
-                if (stealth) "stealth_notif_channel_desc" else "guard_service_channel_desc",
-                language
-            )
-            setShowBadge(false)
-        }
-        manager.createNotificationChannel(channel)
-    }
-
-    private fun currentLanguage(): AppLanguage {
-        val code = getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
-            .getString("selected_language", "en")
-        return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
-    }
 }

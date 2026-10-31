@@ -114,6 +114,13 @@ fun FirstRunShieldSetupDialog(
                     fontSize = 13.sp,
                     lineHeight = 19.sp
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = Translations.t("setup_identity_hint", language),
+                    color = SoftGold,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 

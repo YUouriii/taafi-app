@@ -13,7 +13,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.aistudio.breakfree.recovr.MainActivity
 import com.aistudio.breakfree.recovr.R
 import com.aistudio.breakfree.recovr.localization.Translations
 import com.aistudio.breakfree.recovr.model.AppLanguage
@@ -28,24 +27,6 @@ import kotlin.concurrent.thread
 
 /**
  * The on-device half of the DNS shield: a VPN that carries **only DNS queries**.
- *
- * ## Why a VPN at all
- *
- * Android does not let an ordinary app write the system's Private DNS setting; that needs
- * the Device Owner role (see [PrivateDnsShield]). A VPN is the only mechanism a normal
- * install has for taking control of resolution, so this service exists as the fallback and
- * as the default for everyone who is not a Device Owner.
- *
- * ## How narrow it is
- *
- * The tunnel has a single /32 route per resolver address. Every other packet — web pages,
- * video, chat, updates — never enters it, so there is no traffic forwarding, no NAT, and no
- * throughput cost. Only lookups addressed to the resolver are read, matched against
- * [DnsBlocklist], and either answered locally or relayed.
- *
- * A VPN cannot be hidden from the user: Android shows the key indicator and this service
- * posts an ongoing notification. The user can also switch it off in system settings, which
- * is why [DnsShield] reports the live state instead of assuming it is still on.
  */
 class DnsFilterVpnService : VpnService() {
 
@@ -103,6 +84,23 @@ class DnsFilterVpnService : VpnService() {
                 Log.w(TAG, "Could not refresh the DNS notification", e)
             }
         }
+
+        /** PendingIntent that stops the DNS filter. Used by the combined notification. */
+        fun stopIntent(context: Context): PendingIntent {
+            val intent = Intent(context, DnsFilterVpnService::class.java).setAction(ACTION_STOP)
+            return PendingIntent.getService(
+                context,
+                1,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        private fun currentLanguage(context: Context): AppLanguage {
+            val code = context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
+                .getString("selected_language", "en")
+            return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
+        }
     }
 
     private var tunnel: ParcelFileDescriptor? = null
@@ -115,7 +113,8 @@ class DnsFilterVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        GuardForegroundService.createChannel(this)
+        createNotificationChannel() // keep the legacy dns_shield channel for compat
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -148,20 +147,12 @@ class DnsFilterVpnService : VpnService() {
         return START_STICKY
     }
 
-    /**
-     * The tunnel carries DNS only: the resolver's addresses are routed into it and nothing
-     * else is. Our own app is excluded so BreakFree's Firebase traffic can never loop back
-     * into the filter.
-     */
     private fun establish(): Boolean {
         val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
             com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
         val builder = Builder()
-            // The VPN session name is visible in system VPN settings, so it must not say
-            // "BreakFree" while Stealth Mode is on.
             .setSession(
-                if (stealth) Translations.t("stealth_vpn_session", currentLanguage())
-                else getString(R.string.app_name)
+                if (stealth) Translations.t("stealth_vpn_session", currentLanguage()) else getString(R.string.app_name)
             )
             .setMtu(MTU)
             .addAddress(TUN_ADDRESS, 32)
@@ -174,7 +165,6 @@ class DnsFilterVpnService : VpnService() {
         try {
             builder.addDisallowedApplication(packageName)
         } catch (e: Exception) {
-            // Not fatal: our upstream socket is protected below as well.
             Log.w(TAG, "Could not exclude our own package from the tunnel", e)
         }
 
@@ -207,10 +197,6 @@ class DnsFilterVpnService : VpnService() {
         }
     }
 
-    /**
-     * One DNS query: blocked hosts are answered locally, everything else is relayed to the
-     * family resolver. Runs on a worker thread; a slow lookup can never stall the reader.
-     */
     private fun handle(packet: ByteArray, length: Int, output: FileOutputStream) {
         val query = try {
             DnsPacket.parseQuery(packet, length)
@@ -233,13 +219,11 @@ class DnsFilterVpnService : VpnService() {
         write(output, reply)
     }
 
-    /** Sends the query to the family resolver, bypassing the tunnel. */
     private fun resolve(payload: ByteArray): ByteArray? {
         for (upstream in arrayOf(UPSTREAM_PRIMARY, UPSTREAM_SECONDARY)) {
             var socket: DatagramSocket? = null
             try {
                 socket = DatagramSocket()
-                // protect() keeps the lookup itself out of the tunnel, so it cannot loop.
                 if (!protect(socket)) {
                     Log.w(TAG, "Could not protect the upstream socket")
                     socket.close()
@@ -274,7 +258,6 @@ class DnsFilterVpnService : VpnService() {
     }
 
     override fun onRevoke() {
-        // The user (or another VPN) took the tunnel away. Nothing to undo: just stop.
         Log.i(TAG, "The VPN was revoked by the system")
         stopSelf()
     }
@@ -295,7 +278,12 @@ class DnsFilterVpnService : VpnService() {
         }
         tunnel = null
         reader = null
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+        try {
+            GuardForegroundService.refresh(applicationContext)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not refresh the guard notification", e)
+        }
         super.onDestroy()
     }
 
@@ -305,82 +293,28 @@ class DnsFilterVpnService : VpnService() {
         } else {
             0
         }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
-    }
-
-    private fun buildNotification(): android.app.Notification {
-        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
-            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
-        val language = currentLanguage()
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(if (stealth) R.drawable.ic_stat_neutral else R.drawable.ic_stat_shield)
-        .setContentTitle(
-            Translations.t(if (stealth) "stealth_service_title" else "dns_vpn_notification_title", language)
-        )
-        .setContentText(
-            Translations.t(if (stealth) "stealth_service_text" else "dns_vpn_notification_text", language)
-        )
-        .setPriority(NotificationCompat.PRIORITY_LOW)
-        .setOngoing(true)
-        .setShowWhen(false)
-        .setOnlyAlertOnce(true)
-        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-        .setContentIntent(openAppIntent())
-        .addAction(
-            0,
-            Translations.t("dns_vpn_notification_stop", currentLanguage()),
-            stopIntent()
-        )
-        .build()
-    }
-
-    private fun openAppIntent(): PendingIntent {
-        val intent = appLaunchIntent(this)
-        return PendingIntent.getActivity(
+        ServiceCompat.startForeground(
             this,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            GuardForegroundService.COMBINED_ID,
+            GuardForegroundService.buildCombinedNotification(this),
+            type
         )
     }
 
-    private fun stopIntent(): PendingIntent {
-        val intent = Intent(this, DnsFilterVpnService::class.java).setAction(ACTION_STOP)
-        return PendingIntent.getService(
-            this,
-            1,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+    private fun currentLanguage(): AppLanguage {
+        val code = getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
+            .getString("selected_language", "en")
+        return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        val language = currentLanguage()
-        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
-            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
         val channel = NotificationChannel(
             CHANNEL_ID,
-            Translations.t(
-                if (stealth) "stealth_notif_channel" else "dns_vpn_notification_channel",
-                language
-            ),
+            "DNS Shield",
             NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = Translations.t(
-                if (stealth) "stealth_notif_channel_desc" else "dns_vpn_notification_channel_desc",
-                language
-            )
-            setShowBadge(false)
-        }
+        ).apply { setShowBadge(false) }
         manager.createNotificationChannel(channel)
-    }
-
-    private fun currentLanguage(): AppLanguage {
-        // Same store and key the repository writes when the user switches language.
-        val code = getSharedPreferences(MonitoringPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-            .getString("selected_language", "en")
-        return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
     }
 }

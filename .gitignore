@@ -19,3 +19,7 @@ debug.keystore
 *.keystore
 *.jks
 *-debug.log
+
+.firebaserc
+app/google-services.json.bak
+gradle/gradle-daemon-jvm.properties

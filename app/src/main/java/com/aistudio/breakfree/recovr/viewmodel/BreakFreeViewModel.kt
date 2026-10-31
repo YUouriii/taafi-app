@@ -14,6 +14,7 @@ import com.aistudio.breakfree.recovr.ai.CrisisSupport
 import com.aistudio.breakfree.recovr.ai.GeminiRecoveryCounselor
 import com.aistudio.breakfree.recovr.data.BreakFreeRepository
 import com.aistudio.breakfree.recovr.data.FirestoreRecoveryRepository
+import com.aistudio.breakfree.recovr.localization.Translations
 import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.model.ChatMessage
 import com.aistudio.breakfree.recovr.model.CommunityCategory
@@ -24,6 +25,7 @@ import com.aistudio.breakfree.recovr.model.StreakState
 import com.aistudio.breakfree.recovr.model.StreakSummary
 import com.aistudio.breakfree.recovr.model.UserProfile
 import com.aistudio.breakfree.recovr.monitoring.DnsShield
+import com.aistudio.breakfree.recovr.stealth.StealthManager
 import com.aistudio.breakfree.recovr.monitoring.MonitoringManager
 import com.aistudio.breakfree.recovr.monitoring.MonitoringPreferences
 import com.aistudio.breakfree.recovr.update.AutoUpdater
@@ -212,6 +214,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
 
     private var liveTimerJob: Job? = null
     private var checkInsObservationJob: Job? = null
+    private var communityPostsObservationJob: Job? = null
 
     // Local storage bucket the visible check-ins belong to ("local" or a Firebase uid).
     private var currentOwner: String = BreakFreeRepository.LOCAL_OWNER
@@ -232,6 +235,19 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         initInitialChatMessages()
         _dailyCheckIns.value = repository.getCheckIns(currentOwner)
         initAuthListener()
+        // If a duress PIN wiped recovery data, the in-memory streak/check-ins must be
+        // re-read from storage once duress mode ends, so the dashboard shows the truth.
+        viewModelScope.launch {
+            var wasDuress = false
+            StealthManager.duressMode.collect { isDuress ->
+                if (wasDuress && !isDuress) {
+                    _streakState.value = repository.getStreakState()
+                    _dailyCheckIns.value = repository.getCheckIns(currentOwner)
+                    _communityPosts.value = repository.getCommunityPosts()
+                }
+                wasDuress = isDuress
+            }
+        }
     }
 
     private fun initAuthListener() {
@@ -253,9 +269,13 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
 
         checkInsObservationJob?.cancel()
         checkInsObservationJob = null
+        communityPostsObservationJob?.cancel()
+        communityPostsObservationJob = null
 
         // Show this account's own on-device logs immediately, even while offline.
         _dailyCheckIns.value = repository.getCheckIns(owner)
+        // Community is global: show cached posts immediately, then refresh from cloud.
+        _communityPosts.value = repository.getCommunityPosts()
 
         if (user == null) {
             cloudProfileCreatedAt = null
@@ -263,6 +283,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         }
 
         observeFirestoreCheckIns(user.uid)
+        observeFirestoreCommunityPosts()
         viewModelScope.launch {
             // Pull first, push second: a new device adopts the cloud streak instead of
             // overwriting it with local zeros, and only a locally-advanced state is
@@ -304,6 +325,31 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    private fun observeFirestoreCommunityPosts() {
+        communityPostsObservationJob?.cancel()
+        communityPostsObservationJob = viewModelScope.launch {
+            try {
+                firestoreRepo.observeCommunityPosts()
+                    .catch { e ->
+                        Log.w("BreakFreeVM", "Community posts observation error: ${e.message}")
+                    }
+                    .collect { cloudPosts ->
+                        // Merge cloud posts with local cache (union by id).
+                        val local = repository.getCommunityPosts()
+                        val byId = LinkedHashMap<String, CommunityPost>()
+                        cloudPosts.forEach { byId[it.id] = it }
+                        local.forEach { p ->
+                            if (!byId.containsKey(p.id)) byId[p.id] = p
+                        }
+                        val merged = byId.values.sortedByDescending { it.timestampMillis }
+                        _communityPosts.value = merged
+                        repository.saveCommunityPosts(merged)
+                    }
+            } catch (e: Exception) {
+                Log.w("BreakFreeVM", "Failed to start observing community posts: ${e.message}")
+            }
+        }
+    }
     private fun observeFirestoreCheckIns(uid: String) {
         checkInsObservationJob?.cancel()
         checkInsObservationJob = viewModelScope.launch {
@@ -598,11 +644,13 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         _updateStatusMessage.value = null
         AutoUpdater.check(
             app,
+            _language.value,
             onResult = { info ->
                 _updateInfo.value = info
                 _updateCheckInProgress.value = false
                 if (info == null) {
-                    _updateStatusMessage.value = "You're up to date."
+                    _updateStatusMessage.value =
+                        Translations.t("settings_up_to_date", _language.value)
                 }
             },
             onError = { message ->
@@ -619,7 +667,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         val app = getApplication<Application>()
         if (!AutoUpdater.canInstallPackages(app)) {
             AutoUpdater.openInstallPermissionSettings(app)
-            _updateError.value = "Grant \"Install unknown apps\" for BreakFree, then try again."
+            _updateError.value = Translations.t("update_error_install_permission", _language.value)
             return
         }
         _updateDownloadProgress.value = 0
@@ -630,7 +678,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
             onComplete = { file ->
                 _updateDownloadProgress.value = null
                 if (file == null) {
-                    _updateError.value = "Download failed. Check your connection and try again."
+                    _updateError.value = Translations.t("update_error_download", _language.value)
                 }
             }
         )
@@ -789,8 +837,19 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun toggleFistBump(postId: String) {
+        val wasCheered = _communityPosts.value.firstOrNull { it.id == postId }?.userCheered ?: false
         _communityPosts.value = repository.toggleFistBump(postId)
         triggerHaptic(longVibe = false)
+        val user = _currentUser.value
+        if (user != null) {
+            viewModelScope.launch {
+                try {
+                    firestoreRepo.toggleFistBump(postId, wasCheered)
+                } catch (e: Exception) {
+                    Log.w("BreakFreeVM", "Fist bump sync failed: ${e.message}")
+                }
+            }
+        }
     }
 
     fun openNewPostDialog(show: Boolean) {
@@ -817,6 +876,36 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         )
         _communityPosts.value = repository.addCommunityPost(newPost)
         _showNewPostDialog.value = false
+        val user = _currentUser.value
+        if (user == null) {
+            android.widget.Toast.makeText(
+                getApplication(),
+                "Post saved locally. Sign in to share with the community.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        viewModelScope.launch {
+            val result = try {
+                firestoreRepo.saveCommunityPost(newPost)
+            } catch (e: Exception) {
+                Log.w("BreakFreeVM", "Community post upload failed: ${e.message}")
+                null
+            }
+            if (result == null) {
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Post saved locally only — cloud sync failed. Check logcat / rules / App Check.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            } else {
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Post shared with the community.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     // AI Companion Chat with Gemini AI Logic
@@ -881,20 +970,23 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         _isAiLoading.value = true
 
         viewModelScope.launch {
-            val reply = geminiCounselor.sendChatMessage(
-                userMessage = text,
-                cleanDays = _streakState.value.days,
-                language = _language.value
-            )
-            val aiMsg = ChatMessage(
-                id = UUID.randomUUID().toString(),
-                isFromUser = false,
-                text = reply.text,
-                isFallback = reply.isFallback
-            )
-            _chatMessages.update { it + aiMsg }
-            _isAiLoading.value = false
-            triggerHaptic(longVibe = false)
+            try {
+                val reply = geminiCounselor.sendChatMessage(
+                    userMessage = text,
+                    cleanDays = _streakState.value.days,
+                    language = _language.value
+                )
+                val aiMsg = ChatMessage(
+                    id = UUID.randomUUID().toString(),
+                    isFromUser = false,
+                    text = reply.text,
+                    isFallback = reply.isFallback
+                )
+                _chatMessages.update { it + aiMsg }
+            } finally {
+                _isAiLoading.value = false
+                triggerHaptic(longVibe = false)
+            }
         }
     }
 
