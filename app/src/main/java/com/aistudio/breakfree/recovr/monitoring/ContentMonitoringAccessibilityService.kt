@@ -754,9 +754,9 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         remainingSeconds: Int,
         totalSeconds: Int
     ) {
-        val appIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
+        // Resolves to the enabled launcher component, so tapping still opens the app when
+        // Stealth Mode has disabled MainActivity in favour of an alias.
+        val appIntent = appLaunchIntent(this)
         val appPendingIntent = PendingIntent.getActivity(
             this,
             0,

@@ -335,9 +335,7 @@ class DnsFilterVpnService : VpnService() {
     }
 
     private fun openAppIntent(): PendingIntent {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
+        val intent = appLaunchIntent(this)
         return PendingIntent.getActivity(
             this,
             0,
