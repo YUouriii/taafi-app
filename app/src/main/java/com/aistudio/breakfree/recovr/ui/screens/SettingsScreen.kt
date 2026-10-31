@@ -57,6 +57,7 @@ import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.monitoring.MonitoringManager
 import com.aistudio.breakfree.recovr.monitoring.OverlayPermission
 import com.aistudio.breakfree.recovr.monitoring.UninstallLock
+import com.aistudio.breakfree.recovr.stealth.DisguisePreset
 import com.aistudio.breakfree.recovr.ui.components.AuthCard
 import com.aistudio.breakfree.recovr.ui.components.CostumeEmoji
 import com.aistudio.breakfree.recovr.ui.components.CostumeIconType
@@ -392,6 +393,19 @@ fun SettingsScreen(
                             text = "Disguised as: ${stealthPrefs.disguisePreset.label}",
                             color = TextMuted,
                             fontSize = 11.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = Translations.t(
+                                when (stealthPrefs.disguisePreset) {
+                                    DisguisePreset.CALCULATOR -> "stealth_unlock_calc_hint"
+                                    DisguisePreset.NOTES -> "stealth_unlock_notes_hint"
+                                    DisguisePreset.WEATHER -> "stealth_unlock_weather_hint"
+                                },
+                                language
+                            ),
+                            color = TextMuted.copy(alpha = 0.85f),
+                            fontSize = 11.sp
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(

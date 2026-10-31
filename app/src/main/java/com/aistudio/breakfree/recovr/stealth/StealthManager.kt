@@ -123,6 +123,7 @@ object StealthManager {
         p.appLockEnabled = true
 
         applyDisguise(context, preset)
+        refreshNotificationAppearance(context)
         return true
     }
 
@@ -134,6 +135,64 @@ object StealthManager {
         p.stealthEnabled = false
         p.appLockEnabled = false
         p.clearPin()
+        refreshNotificationAppearance(context)
+    }
+
+    /**
+     * Rewrites the visible notification surface after a Stealth Mode toggle: the ongoing
+     * notifications are re-posted with the right wording/icon, and the three channels are
+     * renamed so system notification settings do not expose the app either.
+     */
+    private fun refreshNotificationAppearance(context: Context) {
+        try {
+            com.aistudio.breakfree.recovr.monitoring.GuardForegroundService.start(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not refresh the guard notification", e)
+        }
+        try {
+            com.aistudio.breakfree.recovr.monitoring.DnsFilterVpnService.refreshNotification(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not refresh the DNS notification", e)
+        }
+        updateChannelNames(context)
+    }
+
+    private fun updateChannelNames(context: Context) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(android.app.NotificationManager::class.java) ?: return
+        val p = prefs(context)
+        val stealth = p.stealthEnabled && p.discreetNotifications
+        val code = context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
+            .getString("selected_language", "en")
+        val language = if (code == "ar") {
+            com.aistudio.breakfree.recovr.model.AppLanguage.ARABIC
+        } else {
+            com.aistudio.breakfree.recovr.model.AppLanguage.ENGLISH
+        }
+        val neutralName = com.aistudio.breakfree.recovr.localization.Translations
+            .t("stealth_notif_channel", language)
+        val neutralDesc = com.aistudio.breakfree.recovr.localization.Translations
+            .t("stealth_notif_channel_desc", language)
+
+        val channels = mapOf(
+            "breakfree_grace_period_channel" to
+                ("grace_notification_channel" to "grace_notification_channel_desc"),
+            "guard_service" to
+                ("guard_service_channel" to "guard_service_channel_desc"),
+            "dns_shield" to
+                ("dns_vpn_notification_channel" to "dns_vpn_notification_channel_desc")
+        )
+        channels.forEach { (id, keys) ->
+            val existing = manager.getNotificationChannel(id) ?: return@forEach
+            val name = if (stealth) neutralName else
+                com.aistudio.breakfree.recovr.localization.Translations.t(keys.first, language)
+            if (existing.name == name) return@forEach
+            val updated = android.app.NotificationChannel(id, name, existing.importance).apply {
+                description = if (stealth) neutralDesc else
+                    com.aistudio.breakfree.recovr.localization.Translations.t(keys.second, language)
+            }
+            manager.createNotificationChannel(updated)
+        }
     }
 
     /** Applies the neutral launcher icon/name for [preset]. */

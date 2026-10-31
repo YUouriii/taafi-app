@@ -724,12 +724,22 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val language = currentLanguage()
+            // In Stealth Mode even the channel name in system settings must not give the
+            // app away, so the channel is re-created with neutral copy.
+            val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
+                com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                Translations.t("grace_notification_channel", language),
+                Translations.t(
+                    if (stealth) "stealth_notif_channel" else "grace_notification_channel",
+                    language
+                ),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = Translations.t("grace_notification_channel_desc", language)
+                description = Translations.t(
+                    if (stealth) "stealth_notif_channel_desc" else "grace_notification_channel_desc",
+                    language
+                )
                 enableVibration(true)
             }
             notificationManager?.createNotificationChannel(channel)
@@ -763,26 +773,44 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
             .replace("{time}", timeString)
             .replace("{total}", totalSeconds.toString())
 
-        val detectedLine = if (com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
+        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
             com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
-        ) {
-            Translations.t("grace_notification_detected_stealth", language)
-        } else {
-            Translations.t("grace_notification_detected", language)
-        }
+
+        // Nothing in the shade may mention recovery, urges or explicit content while
+        // Stealth Mode is on: neutral copy is used end to end.
+        val detectedLine = Translations.t(
+            if (stealth) "grace_notification_detected_stealth" else "grace_notification_detected",
+            language
+        )
+        val title = Translations.t(
+            if (stealth) "stealth_grace_title" else "grace_notification_title",
+            language
+        )
+        val bodyText = Translations.t(
+            if (stealth) "stealth_grace_text" else "grace_notification_text",
+            language
+        )
+        val staysLine = Translations.t(
+            if (stealth) "stealth_grace_stays" else "grace_notification_stays",
+            language
+        )
+        val notRecordedLine = Translations.t(
+            if (stealth) "stealth_grace_not_recorded" else "grace_notification_not_recorded",
+            language
+        )
+
+        val smallIcon = if (stealth) R.drawable.ic_stat_neutral else R.drawable.ic_stat_shield
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_shield)
-            .setContentTitle(
-                Translations.t("grace_notification_title", language) + " ($timeString)"
-            )
-            .setContentText(Translations.t("grace_notification_text", language))
+            .setSmallIcon(smallIcon)
+            .setContentTitle("$title ($timeString)")
+            .setContentText(bodyText)
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
                     detectedLine + "\n" +
                         remainingLine + "\n" +
-                        Translations.t("grace_notification_stays", language) + "\n" +
-                        Translations.t("grace_notification_not_recorded", language)
+                        staysLine + "\n" +
+                        notRecordedLine
                 )
             )
             .setPriority(NotificationCompat.PRIORITY_MAX)

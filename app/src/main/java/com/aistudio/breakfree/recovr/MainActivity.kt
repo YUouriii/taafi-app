@@ -349,7 +349,12 @@ fun BreakFreeApp(
             } else {
                 StealthEntryScreen(
                     language = language,
-                    onUnlockRequested = { showPin = true }
+                    preset = StealthManager.prefs(context).disguisePreset,
+                    onUnlockRequested = { showPin = true },
+                    onUnlocked = {
+                        StealthManager.unlock(context)
+                        showPin = false
+                    }
                 )
             }
         }

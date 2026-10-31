@@ -60,8 +60,12 @@ class GuardForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Re-post on every start so a Stealth Mode toggle (which changes the wording and
+        // the icon) is reflected immediately instead of waiting for a process restart.
+        createChannel()
+        startInForeground()
         // START_STICKY: if the system kills this service, it is recreated with a null
-        // intent and restarted. The notification is re-posted in onCreate.
+        // intent and restarted.
         return START_STICKY
     }
 
@@ -129,10 +133,16 @@ class GuardForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val language = currentLanguage()
+        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
+            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_shield)
-            .setContentTitle(Translations.t("guard_service_title", language))
-            .setContentText(Translations.t("guard_service_text", language))
+            .setSmallIcon(if (stealth) R.drawable.ic_stat_neutral else R.drawable.ic_stat_shield)
+            .setContentTitle(
+                Translations.t(if (stealth) "stealth_service_title" else "guard_service_title", language)
+            )
+            .setContentText(
+                Translations.t(if (stealth) "stealth_service_text" else "guard_service_text", language)
+            )
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setShowWhen(false)
@@ -146,12 +156,20 @@ class GuardForegroundService : Service() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java) ?: return
         val language = currentLanguage()
+        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
+            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
         val channel = NotificationChannel(
             CHANNEL_ID,
-            Translations.t("guard_service_channel", language),
+            Translations.t(
+                if (stealth) "stealth_notif_channel" else "guard_service_channel",
+                language
+            ),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = Translations.t("guard_service_channel_desc", language)
+            description = Translations.t(
+                if (stealth) "stealth_notif_channel_desc" else "guard_service_channel_desc",
+                language
+            )
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)

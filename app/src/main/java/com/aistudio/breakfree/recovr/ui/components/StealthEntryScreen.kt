@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,19 +39,45 @@ import com.aistudio.breakfree.recovr.ui.theme.BlackElevated
 import com.aistudio.breakfree.recovr.ui.theme.BlackSurface
 import com.aistudio.breakfree.recovr.ui.theme.GreenCalm
 import com.aistudio.breakfree.recovr.ui.theme.TextPrimary
+import com.aistudio.breakfree.recovr.ui.theme.TextMuted
 import com.aistudio.breakfree.recovr.ui.theme.TextSecondary
 import com.aistudio.breakfree.recovr.ui.theme.WhiteGlowing
+import com.aistudio.breakfree.recovr.stealth.DisguisePreset
+import com.aistudio.breakfree.recovr.stealth.StealthManager
 import kotlin.math.abs
 
 /**
- * A working calculator shown as the decoy when Stealth Mode is on. A long-press on the
- * display reveals the PIN entry that unlocks the real app.
+ * The decoy shown while Stealth Mode is locked. Calculator, Notes and Weather all look
+ * like ordinary apps, and none of them prints an "unlock" hint — that would defeat the
+ * disguise. The way back in is explained once, at setup time, and repeated in Settings:
+ *
+ *  - Calculator: type the PIN and press `=`, or long-press the display.
+ *  - Notes: long-press any note.
+ *  - Weather: long-press the temperature.
  */
 @Composable
 fun StealthEntryScreen(
     language: AppLanguage,
-    onUnlockRequested: () -> Unit
+    preset: DisguisePreset = DisguisePreset.CALCULATOR,
+    onUnlockRequested: () -> Unit,
+    onUnlocked: () -> Unit = onUnlockRequested
 ) {
+    when (preset) {
+        DisguisePreset.CALCULATOR -> CalculatorDecoy(
+            onUnlockRequested = onUnlockRequested,
+            onUnlocked = onUnlocked
+        )
+        DisguisePreset.NOTES -> NotesDecoy(onUnlockRequested = onUnlockRequested)
+        DisguisePreset.WEATHER -> WeatherDecoy(onUnlockRequested = onUnlockRequested)
+    }
+}
+
+@Composable
+private fun CalculatorDecoy(
+    onUnlockRequested: () -> Unit,
+    onUnlocked: () -> Unit
+) {
+    val context = LocalContext.current
     var display by remember { mutableStateOf("0") }
     var accumulator by remember { mutableStateOf<Double?>(null) }
     var pendingOp by remember { mutableStateOf<String?>(null) }
@@ -159,7 +186,20 @@ fun StealthEntryScreen(
                                         "C" -> clear()
                                         "⌫" -> if (display.length > 1) display = display.dropLast(1) else display = "0"
                                         "÷", "×", "-", "+" -> applyOp(key)
-                                        "=" -> equals()
+                                        "=" -> {
+                                            // A 4-6 digit "calculation" that matches the
+                                            // PIN unlocks the real app. Anything else
+                                            // behaves like a normal calculator.
+                                            val candidate = display
+                                            if (candidate.length in 4..6 &&
+                                                candidate.all { it.isDigit() } &&
+                                                StealthManager.verifyPin(context, candidate)
+                                            ) {
+                                                onUnlocked()
+                                            } else {
+                                                equals()
+                                            }
+                                        }
                                         else -> applyDigit(key)
                                     }
                                 }
@@ -170,6 +210,83 @@ fun StealthEntryScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun NotesDecoy(onUnlockRequested: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BlackSurface)
+            .pointerInput(Unit) { detectTapGestures(onLongPress = { onUnlockRequested() }) }
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Notes",
+            color = WhiteGlowing,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        listOf("Shopping list", "Meeting notes", "Ideas", "Reminders").forEach { title ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .background(BlackCard, RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+            ) {
+                Text(text = title, color = TextPrimary, fontSize = 14.sp)
+            }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "4 notes",
+            color = TextMuted.copy(alpha = 0.5f),
+            fontSize = 11.sp,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun WeatherDecoy(onUnlockRequested: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BlackSurface)
+            .pointerInput(Unit) { detectTapGestures(onLongPress = { onUnlockRequested() }) }
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+        Text(text = "24°C", color = WhiteGlowing, fontSize = 64.sp, fontWeight = FontWeight.Light)
+        Text(text = "Partly Cloudy", color = TextSecondary, fontSize = 18.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(text = "New York", color = TextMuted, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(28.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            listOf("Now" to "24°", "1 PM" to "25°", "2 PM" to "25°", "3 PM" to "23°")
+                .forEach { (hour, temp) ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = hour, color = TextMuted, fontSize = 11.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = temp, color = TextSecondary, fontSize = 15.sp)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "Updated just now",
+            color = TextMuted.copy(alpha = 0.5f),
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

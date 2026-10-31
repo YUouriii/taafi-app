@@ -99,6 +99,27 @@ fun StealthSetupDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = Translations.t("stealth_unlock_title", language),
+                    color = TextPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = Translations.t(
+                        when (selectedPreset) {
+                            DisguisePreset.CALCULATOR -> "stealth_unlock_calc_hint"
+                            DisguisePreset.NOTES -> "stealth_unlock_notes_hint"
+                            DisguisePreset.WEATHER -> "stealth_unlock_weather_hint"
+                        },
+                        language
+                    ),
+                    color = TextMuted,
+                    fontSize = 11.5.sp
+                )
+
                 error?.let {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(text = it, color = SoftGold, fontSize = 12.sp)

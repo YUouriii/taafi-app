@@ -54,6 +54,7 @@ class DnsFilterVpnService : VpnService() {
 
         private const val ACTION_START = "com.aistudio.breakfree.recovr.DNS_SHIELD_START"
         private const val ACTION_STOP = "com.aistudio.breakfree.recovr.DNS_SHIELD_STOP"
+        private const val ACTION_REFRESH = "com.aistudio.breakfree.recovr.DNS_SHIELD_REFRESH"
 
         private const val CHANNEL_ID = "dns_shield"
         private const val NOTIFICATION_ID = 0x5D05
@@ -86,6 +87,22 @@ class DnsFilterVpnService : VpnService() {
         fun stop(context: Context) {
             context.stopService(Intent(context, DnsFilterVpnService::class.java))
         }
+
+        /**
+         * Re-posts the ongoing notification with the current wording. Used when Stealth
+         * Mode is toggled while the tunnel is already up. Does nothing when the filter is
+         * off, so it can never start a VPN by accident.
+         */
+        fun refreshNotification(context: Context) {
+            if (!running) return
+            try {
+                context.startService(
+                    Intent(context, DnsFilterVpnService::class.java).setAction(ACTION_REFRESH)
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not refresh the DNS notification", e)
+            }
+        }
     }
 
     private var tunnel: ParcelFileDescriptor? = null
@@ -103,6 +120,15 @@ class DnsFilterVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (intent?.action == ACTION_REFRESH) {
+            if (running) {
+                startInForeground()
+                return START_STICKY
+            }
             stopSelf()
             return START_NOT_STICKY
         }
@@ -128,8 +154,15 @@ class DnsFilterVpnService : VpnService() {
      * into the filter.
      */
     private fun establish(): Boolean {
+        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
+            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
         val builder = Builder()
-            .setSession(getString(R.string.app_name))
+            // The VPN session name is visible in system VPN settings, so it must not say
+            // "BreakFree" while Stealth Mode is on.
+            .setSession(
+                if (stealth) Translations.t("stealth_vpn_session", currentLanguage())
+                else getString(R.string.app_name)
+            )
             .setMtu(MTU)
             .addAddress(TUN_ADDRESS, 32)
             .addDnsServer(UPSTREAM_PRIMARY)
@@ -275,10 +308,18 @@ class DnsFilterVpnService : VpnService() {
         ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
     }
 
-    private fun buildNotification() = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setSmallIcon(R.drawable.ic_stat_shield)
-        .setContentTitle(Translations.t("dns_vpn_notification_title", currentLanguage()))
-        .setContentText(Translations.t("dns_vpn_notification_text", currentLanguage()))
+    private fun buildNotification(): android.app.Notification {
+        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
+            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
+        val language = currentLanguage()
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(if (stealth) R.drawable.ic_stat_neutral else R.drawable.ic_stat_shield)
+        .setContentTitle(
+            Translations.t(if (stealth) "stealth_service_title" else "dns_vpn_notification_title", language)
+        )
+        .setContentText(
+            Translations.t(if (stealth) "stealth_service_text" else "dns_vpn_notification_text", language)
+        )
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .setOngoing(true)
         .setShowWhen(false)
@@ -291,6 +332,7 @@ class DnsFilterVpnService : VpnService() {
             stopIntent()
         )
         .build()
+    }
 
     private fun openAppIntent(): PendingIntent {
         val intent = Intent(this, MainActivity::class.java).apply {
@@ -318,12 +360,20 @@ class DnsFilterVpnService : VpnService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java) ?: return
         val language = currentLanguage()
+        val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(this) &&
+            com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(this)
         val channel = NotificationChannel(
             CHANNEL_ID,
-            Translations.t("dns_vpn_notification_channel", language),
+            Translations.t(
+                if (stealth) "stealth_notif_channel" else "dns_vpn_notification_channel",
+                language
+            ),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = Translations.t("dns_vpn_notification_channel_desc", language)
+            description = Translations.t(
+                if (stealth) "stealth_notif_channel_desc" else "dns_vpn_notification_channel_desc",
+                language
+            )
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)

@@ -78,8 +78,8 @@ object Translations {
         ),
         "grace_notification_detected" to Pair("Something explicit was detected.", "تم رصد محتوى صريح."),
         "grace_notification_detected_stealth" to Pair(
-            "A mindfulness reminder was triggered.",
-            "تم تفعيل تذكير للوعي."
+            "A reminder was triggered.",
+            "تم تفعيل تذكير."
         ),
         "grace_notification_remaining" to Pair(
             "You have {time} left of your {total}s window.",
@@ -251,6 +251,43 @@ object Translations {
             "A PIN is required to protect the dashboard.",
             "رمز PIN مطلوب لحماية لوحة التحكم."
         ),
+        // How to get back into the real app, per disguise. Shown at setup time and in
+        // Settings, because a decoy that explains itself would give the disguise away.
+        "stealth_unlock_title" to Pair("How to open it later", "طريقة فتحه لاحقاً"),
+        "stealth_unlock_calc_hint" to Pair(
+            "Type your PIN, then press = — or long-press the calculator display.",
+            "اكتب رمز PIN ثم اضغط = — أو اضغط مطولاً على شاشة الآلة الحاسبة."
+        ),
+        "stealth_unlock_notes_hint" to Pair(
+            "Long-press any note to open the PIN pad.",
+            "اضغط مطولاً على أي ملاحظة لإظهار لوحة الرمز."
+        ),
+        "stealth_unlock_weather_hint" to Pair(
+            "Long-press the temperature to open the PIN pad.",
+            "اضغط مطولاً على درجة الحرارة لإظهار لوحة الرمز."
+        ),
+        // Neutral wording used while Stealth Mode is on.
+        "stealth_notif_channel" to Pair("Notifications", "إشعارات"),
+        "stealth_notif_channel_desc" to Pair(
+            "General app notifications",
+            "إشعارات التطبيق العامة"
+        ),
+        "stealth_grace_title" to Pair("Reminder", "تذكير"),
+        "stealth_grace_text" to Pair("Take a short break.", "خذ استراحة قصيرة."),
+        "stealth_grace_stays" to Pair(
+            "This stays until the reminder ends.",
+            "يبقى هذا حتى ينتهي التذكير."
+        ),
+        "stealth_grace_not_recorded" to Pair(
+            "Nothing has been recorded.",
+            "لم يُسجَّل أي شيء."
+        ),
+        "stealth_service_title" to Pair("Service is running", "الخدمة تعمل"),
+        "stealth_service_text" to Pair(
+            "Background service is active.",
+            "خدمة الخلفية نشطة."
+        ),
+        "stealth_vpn_session" to Pair("Private DNS", "DNS خاص"),
 
         // First-run Shield setup
         "setup_title" to Pair("Set up your Shield", "جهّز درعك"),

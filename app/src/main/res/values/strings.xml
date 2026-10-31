@@ -1,6 +1,13 @@
 <resources>
     <string name="app_name">BreakFree</string>
-    <string name="accessibility_service_description">BreakFree reads the visible text and address bar of pages in the browsers you choose, and the visible text of supported social apps (YouTube, X, Instagram, TikTok, Facebook and Reddit) once you agree to that wider scope, on this device only, to spot explicit content and offer you a 120-second reminder to step back. The text is checked in memory and is never stored, logged or uploaded. You can turn this off at any time in Settings.</string>
+    <!--
+      System-level identity (Settings > Apps, installer, notification header). It is kept
+      deliberately generic so Stealth Mode cannot be exposed by the App Info screen: Android
+      resolves those screens from the <application> label/icon, which cannot be changed at
+      runtime. The launcher entry carries the real BreakFree name and icon instead.
+    -->
+    <string name="app_name_neutral">Utilities</string>
+    <string name="accessibility_service_description">This app reads the visible text and address bar of pages in the browsers you choose, and the visible text of supported social apps (YouTube, X, Instagram, TikTok, Facebook and Reddit) once you agree to that wider scope, on this device only, to spot explicit content and offer you a 120-second reminder to step back. The text is checked in memory and is never stored, logged or uploaded. You can turn this off at any time in Settings.</string>
 
     <!-- Shown on the system "Activate device admin" screen. -->
     <string name="device_admin_description">BreakFree holds this administrator role to prevent uninstallation during your 90-day recovery commitment. It releases automatically when the 90 days end.</string>
