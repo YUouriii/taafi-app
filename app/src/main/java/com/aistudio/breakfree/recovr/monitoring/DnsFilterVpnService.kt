@@ -77,6 +77,9 @@ class DnsFilterVpnService : VpnService() {
         fun refreshNotification(context: Context) {
             if (!running) return
             try {
+                val manager = context.getSystemService(NotificationManager::class.java)
+                try { manager?.cancel(GuardForegroundService.COMBINED_ID) } catch (_: Exception) {}
+                GuardForegroundService.createChannel(context)
                 context.startService(
                     Intent(context, DnsFilterVpnService::class.java).setAction(ACTION_REFRESH)
                 )

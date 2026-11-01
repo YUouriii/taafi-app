@@ -103,9 +103,10 @@ fun StealthLockScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // PIN dots
+            // PIN dots — number of slots follows the entered PIN length (4-6), so a
+            // 4-digit PIN no longer shows six empty slots.
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                repeat(6) { i ->
+                repeat(maxOf(4, enteredPin.length).coerceAtMost(6)) { i ->
                     Box(
                         modifier = Modifier
                             .size(14.dp)

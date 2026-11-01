@@ -54,9 +54,27 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `community starts empty instead of seeding fake users`() {
+  fun `community keeps no local posts and remembers only own fist bumps`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
-    assertTrue(BreakFreeRepository(context).getCommunityPosts().isEmpty())
+    val repo = BreakFreeRepository(context)
+
+    // The feed is cloud-only, so a fresh install has no posts of its own to show.
+    assertTrue(repo.getCheeredPostIds().isEmpty())
+
+    repo.setPostCheered("post-1", true)
+    assertTrue(repo.getCheeredPostIds().contains("post-1"))
+
+    repo.setPostCheered("post-1", false)
+    assertTrue(repo.getCheeredPostIds().isEmpty())
+  }
+
+  @Test
+  fun `a fresh install has no AI provider configured`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val config = BreakFreeRepository(context).getAiConfig()
+
+    assertFalse("Without a key the counselor must stay offline", config.isConfigured)
+    assertEquals("gemini-2.0-flash", config.effectiveModel)
   }
 
   @Test

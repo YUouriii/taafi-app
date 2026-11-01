@@ -52,7 +52,17 @@ class GuardForegroundService : Service() {
         }
 
         fun refresh(context: Context) {
-            start(context)
+            val manager = context.getSystemService(NotificationManager::class.java)
+            createChannel(context)
+            // Force-update the displayed notification in place (startForeground alone does
+            // not always refresh the icon/title on every OEM), then make sure the service
+            // is running with the new notification.
+            try { manager?.notify(COMBINED_ID, buildCombinedNotification(context)) } catch (_: Exception) {}
+            try {
+                androidx.core.content.ContextCompat.startForegroundService(context, Intent(context, GuardForegroundService::class.java))
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not refresh the guard service", e)
+            }
         }
 
         /** Builds the single combined notification for both protection services. */
@@ -68,7 +78,7 @@ class GuardForegroundService : Service() {
                 com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(context)
             val vpnRunning = DnsFilterVpnService.isRunning()
             val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(if (stealth) R.drawable.ic_stat_neutral else R.drawable.ic_stat_shield)
+                .setSmallIcon(R.drawable.ic_stat_shield)
                 .setContentTitle(
                     Translations.t(if (stealth) "stealth_service_title" else "guard_service_title", language)
                 )
@@ -107,18 +117,27 @@ class GuardForegroundService : Service() {
             val language = currentLanguage(context)
             val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences.isStealthEnabled(context) &&
                 com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(context)
+            val desiredName = Translations.t(
+                if (stealth) "stealth_notif_channel" else "guard_service_channel",
+                language
+            )
+            val desiredDesc = Translations.t(
+                if (stealth) "stealth_notif_channel_desc" else "guard_service_channel_desc",
+                language
+            )
+            val existing = manager.getNotificationChannel(CHANNEL_ID)
+            if (existing != null && existing.name != desiredName) {
+                // Android forbids deleting a channel that owns a foreground-service
+                // notification, so we leave the existing channel in place: the
+                // notification's own title/icon (set via buildCombinedNotification)
+                // still updates, which is what the user actually sees.
+            }
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                Translations.t(
-                    if (stealth) "stealth_notif_channel" else "guard_service_channel",
-                    language
-                ),
+                desiredName,
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = Translations.t(
-                    if (stealth) "stealth_notif_channel_desc" else "guard_service_channel_desc",
-                    language
-                )
+                description = desiredDesc
                 setShowBadge(false)
             }
             manager.createNotificationChannel(channel)

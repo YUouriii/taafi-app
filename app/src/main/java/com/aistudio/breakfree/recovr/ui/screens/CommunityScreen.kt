@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -50,6 +51,7 @@ import com.aistudio.breakfree.recovr.localization.Translations
 import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.model.CommunityCategory
 import com.aistudio.breakfree.recovr.model.CommunityPost
+import com.aistudio.breakfree.recovr.ui.components.AuthCard
 import com.aistudio.breakfree.recovr.ui.components.CostumeEmoji
 import com.aistudio.breakfree.recovr.ui.components.CostumeIconType
 import com.aistudio.breakfree.recovr.ui.components.EmptyState
@@ -81,6 +83,9 @@ fun CommunityScreen(
     val posts by viewModel.communityPosts.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val showNewPostDialog by viewModel.showNewPostDialog.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
+    val isPublishing by viewModel.isPublishingPost.collectAsState()
+    val communityError by viewModel.communityError.collectAsState()
 
     val filteredPosts = remember(posts, selectedCategory) {
         if (selectedCategory == CommunityCategory.ALL) posts
@@ -94,6 +99,38 @@ fun CommunityScreen(
                 subtitle = Translations.t("community_subtitle", language),
                 iconType = CostumeIconType.COMMUNITY
             )
+
+            // The feed is public: without an account there is nothing to read and
+            // nothing to post, so the sign-in card is the whole screen.
+            if (currentUser == null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = ScreenGutter, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = Translations.t("community_signin_title", language),
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = Translations.t("community_signin_desc", language),
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AuthCard(
+                        currentUser = null,
+                        language = language,
+                        onAuthSuccess = { viewModel.onAuthSuccess() },
+                        onSignOut = {}
+                    )
+                }
+                return@Column
+            }
 
             // Category filter
             LazyRow(
@@ -121,6 +158,18 @@ fun CommunityScreen(
                 contentPadding = PaddingValues(bottom = 92.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (communityError) {
+                    item {
+                        Text(
+                            text = Translations.t("community_load_failed", language),
+                            color = SoftGold,
+                            fontSize = 11.5.sp,
+                            lineHeight = 16.sp,
+                            modifier = Modifier.testTag("community_error_banner")
+                        )
+                    }
+                }
+
                 if (filteredPosts.isEmpty()) {
                     item {
                         EmptyState(
@@ -142,29 +191,32 @@ fun CommunityScreen(
             }
         }
 
-        ExtendedFloatingActionButton(
-            onClick = { viewModel.openNewPostDialog(true) },
-            containerColor = GreenCalm,
-            contentColor = OnGreenCalm,
-            shape = RoundedCornerShape(20.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 18.dp, end = ScreenGutter)
-                .testTag("new_post_fab")
-        ) {
-            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = Translations.t("community_post_btn", language),
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
-            )
+        if (currentUser != null) {
+            ExtendedFloatingActionButton(
+                onClick = { viewModel.openNewPostDialog(true) },
+                containerColor = GreenCalm,
+                contentColor = OnGreenCalm,
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 18.dp, end = ScreenGutter)
+                    .testTag("new_post_fab")
+            ) {
+                Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = Translations.t("community_post_btn", language),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
         }
     }
 
     if (showNewPostDialog) {
         NewPostDialog(
             language = language,
+            isPublishing = isPublishing,
             onDismiss = { viewModel.openNewPostDialog(false) },
             onPublish = { alias, content, category ->
                 viewModel.createPost(alias, content, category)
@@ -336,6 +388,7 @@ private fun CommunityPostCard(
 @Composable
 private fun NewPostDialog(
     language: AppLanguage,
+    isPublishing: Boolean,
     onDismiss: () -> Unit,
     onPublish: (alias: String, content: String, category: CommunityCategory) -> Unit
 ) {
@@ -344,7 +397,7 @@ private fun NewPostDialog(
     var postCategory by remember { mutableStateOf(CommunityCategory.DAILY_MOTIVATION) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isPublishing) onDismiss() },
         title = {
             Text(
                 text = Translations.t("post_dialog_title", language),
@@ -374,6 +427,13 @@ private fun NewPostDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
+                )
+
+                Text(
+                    text = Translations.t("community_public_note", language),
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp
                 )
 
                 Text(
@@ -422,18 +482,34 @@ private fun NewPostDialog(
         },
         confirmButton = {
             Box(modifier = Modifier.padding(start = 8.dp)) {
-                PrimaryButton(
-                    text = Translations.t("publish_btn", language),
-                    onClick = { onPublish(aliasInput, contentInput, postCategory) },
-                    enabled = contentInput.isNotBlank(),
-                    modifier = Modifier
-                        .width(132.dp)
-                        .testTag("publish_post_button")
-                )
+                if (isPublishing) {
+                    Row(
+                        modifier = Modifier
+                            .width(132.dp)
+                            .height(48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = GreenCalmLight,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                } else {
+                    PrimaryButton(
+                        text = Translations.t("publish_btn", language),
+                        onClick = { onPublish(aliasInput, contentInput, postCategory) },
+                        enabled = contentInput.isNotBlank(),
+                        modifier = Modifier
+                            .width(132.dp)
+                            .testTag("publish_post_button")
+                    )
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, enabled = !isPublishing) {
                 Text(
                     text = Translations.t("close", language),
                     color = TextSecondary

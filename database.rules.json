@@ -1,0 +1,41 @@
+{
+  "rules": {
+    "community_posts": {
+      ".read": "auth != null",
+      ".indexOn": ["timestampMillis"],
+      "$postId": {
+        ".write": "auth != null && (
+          (!data.exists() && newData.hasChildren(['authorAlias','daysClean','category','contentEn','contentAr','timestampMillis','fistBumps'])) ||
+          (data.exists() && newData.hasChild('fistBumps') && !newData.hasChild('authorAlias') && !newData.hasChild('authorAvatarBg') && !newData.hasChild('daysClean') && !newData.hasChild('category') && !newData.hasChild('contentEn') && !newData.hasChild('contentAr') && !newData.hasChild('timestampMillis'))
+        )",
+        "authorAlias": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+        },
+        "authorAvatarBg": {
+          ".validate": "newData.isNumber()"
+        },
+        "daysClean": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "category": {
+          ".validate": "newData.isString()"
+        },
+        "contentEn": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 500"
+        },
+        "contentAr": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 500"
+        },
+        "timestampMillis": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "fistBumps": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.breakfree.recovr.localization.Translations
 import com.aistudio.breakfree.recovr.model.AppLanguage
-import com.aistudio.breakfree.recovr.stealth.DisguisePreset
 import com.aistudio.breakfree.recovr.stealth.StealthManager
 import com.aistudio.breakfree.recovr.ui.theme.BlackElevated
 import com.aistudio.breakfree.recovr.ui.theme.GreenCalmLight
@@ -40,10 +39,9 @@ import com.aistudio.breakfree.recovr.ui.theme.TextSecondary
 @Composable
 fun StealthSetupDialog(
     language: AppLanguage,
-    onConfirm: (DisguisePreset, String) -> Unit,
+    onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedPreset by remember { mutableStateOf(DisguisePreset.CALCULATOR) }
     var pin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -59,27 +57,7 @@ fun StealthSetupDialog(
         },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(
-                    text = Translations.t("stealth_preset", language),
-                    color = TextSecondary,
-                    fontSize = 13.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DisguisePreset.entries.forEach { preset ->
-                        val selected = preset == selectedPreset
-                        TextButton(onClick = { selectedPreset = preset }) {
-                            Text(
-                                text = preset.label,
-                                color = if (selected) GreenCalmLight else TextMuted,
-                                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold
-                                else androidx.compose.ui.text.font.FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 OutlinedTextField(
                     value = pin,
@@ -109,18 +87,6 @@ fun StealthSetupDialog(
                     fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = Translations.t(
-                        when (selectedPreset) {
-                            DisguisePreset.CALCULATOR -> "stealth_unlock_calc_hint"
-                            DisguisePreset.NOTES -> "stealth_unlock_notes_hint"
-                            DisguisePreset.WEATHER -> "stealth_unlock_weather_hint"
-                        },
-                        language
-                    ),
-                    color = TextMuted,
-                    fontSize = 11.5.sp
-                )
 
                 error?.let {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -138,7 +104,7 @@ fun StealthSetupDialog(
                     error = Translations.t("stealth_pin_mismatch", language)
                     return@TextButton
                 }
-                onConfirm(selectedPreset, pin)
+                onConfirm(pin)
             }) {
                 Text(
                     text = Translations.t("stealth_enable", language),

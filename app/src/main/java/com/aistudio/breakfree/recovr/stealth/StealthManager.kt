@@ -24,7 +24,8 @@ import kotlinx.coroutines.flow.asStateFlow
 object StealthManager {
 
     private const val TAG = "StealthManager"
-    private const val MAIN_ACTIVITY = "com.aistudio.breakfree.recovr.MainActivity"
+
+    private const val SECURITY_GUARD_ALIAS = "com.aistudio.breakfree.recovr.alias.SecurityGuardAlias"
 
     // Observable lock state. true = locked (dashboard hidden).
     private val _isLocked = MutableStateFlow(false)
@@ -76,13 +77,6 @@ object StealthManager {
         }
     }
 
-    /** Disables every decoy launcher entry (used when the disguise is removed). */
-    private fun disableAllAliases(context: Context) {
-        DisguisePreset.entries.forEach { preset ->
-            setEnabled(context, preset.aliasClass, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
-        }
-    }
-
     /** Restores the lock state from prefs on app start. */
     fun restoreLockState(context: Context) {
         val p = prefs(context)
@@ -115,6 +109,18 @@ object StealthManager {
 
     fun isStealthActive(context: Context): Boolean = prefs(context).stealthEnabled
 
+    /** Re-applies the correct launcher identity on boot / app start if it drifted. */
+    fun syncStealthIdentity(context: Context) {
+        val p = prefs(context)
+        if (p.stealthEnabled) {
+            setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
+            setEnabled(context, SECURITY_GUARD_ALIAS, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+        } else {
+            setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+            setEnabled(context, SECURITY_GUARD_ALIAS, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
+        }
+    }
+
     /** True when the real dashboard must be unlocked before showing. */
     fun lockRequired(context: Context): Boolean {
         val p = prefs(context)
@@ -122,12 +128,11 @@ object StealthManager {
     }
 
     /**
-     * Turns Stealth Mode on: stores the PIN, applies the disguise, and enables neutral
-     * notifications. Returns false if the PIN is invalid.
+     * Turns Stealth Mode on: stores the PIN and enables neutral notification wording.
+     * Returns false if the PIN is invalid.
      */
     fun enable(
         context: Context,
-        preset: DisguisePreset,
         pin: String,
         discreetNotifications: Boolean = true
     ): Boolean {
@@ -137,12 +142,13 @@ object StealthManager {
         val salt = generateSalt()
         p.pinSalt = salt
         p.pinHash = hashPin(pin, salt)
-        p.disguisePreset = preset
         p.discreetNotifications = discreetNotifications
         p.stealthEnabled = true
         p.appLockEnabled = true
 
-        applyDisguise(context, preset)
+        // Swap the launcher identity: hide the real "BreakFree" entry, show "Security Guard".
+        setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
+        setEnabled(context, SECURITY_GUARD_ALIAS, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
         refreshNotificationAppearance(context)
         return true
     }
@@ -150,11 +156,14 @@ object StealthManager {
     /** Turns Stealth Mode off. Requires the PIN to have been verified by the caller. */
     fun disable(context: Context) {
         val p = prefs(context)
-        val preset = p.disguisePreset
-        removeDisguise(context, preset)
         p.stealthEnabled = false
         p.appLockEnabled = false
         p.clearPin()
+        p.discreetNotifications = false
+
+        // Restore the real "BreakFree" launcher identity.
+        setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+        setEnabled(context, SECURITY_GUARD_ALIAS, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
         refreshNotificationAppearance(context)
     }
 
@@ -215,47 +224,15 @@ object StealthManager {
         }
     }
 
-    /** Applies the neutral launcher icon/name for [preset]. */
-    fun applyDisguise(context: Context, preset: DisguisePreset) {
-        // Clear any stale decoy first, then enable the chosen alias and disable the real
-        // launcher entry, so the app never disappears from the launcher mid-switch.
-        disableAllAliases(context)
-        setEnabled(context, preset.aliasClass, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-        setEnabled(context, MAIN_ACTIVITY, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
-        Log.i(TAG, "Disguise applied: ${preset.label}")
-    }
-
-    /** Restores the real launcher icon/name. */
-    fun removeDisguise(context: Context, preset: DisguisePreset) {
-        setEnabled(context, MAIN_ACTIVITY, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-        disableAllAliases(context)
-        Log.i(TAG, "Disguise removed (${preset.label})")
-    }
-
-    /**
-     * Re-applies the disguise on boot / app start if it drifted (e.g. after an update
-     * re-enabled the main activity).
-     */
-    fun syncDisguise(context: Context) {
-        val p = prefs(context)
-        if (p.stealthEnabled) {
-            // Only the chosen alias may be enabled; a preset changed while stealth was on
-            // must not leave a second decoy icon on the launcher.
-            DisguisePreset.entries
-                .filter { it != p.disguisePreset }
-                .forEach { stale ->
-                    setEnabled(
-                        context,
-                        stale.aliasClass,
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                    )
-                }
-            applyDisguise(context, p.disguisePreset)
-        } else {
-            // Make sure the real entry is enabled and no decoy is left behind (updates can
-            // re-enable aliases, and a previous toggle may have been interrupted).
-            setEnabled(context, MAIN_ACTIVITY, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-            disableAllAliases(context)
+    private fun setEnabled(context: Context, className: String, state: Int) {
+        try {
+            context.packageManager.setComponentEnabledSetting(
+                ComponentName(context.packageName, className),
+                state,
+                PackageManager.DONT_KILL_APP
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not toggle $className", e)
         }
     }
 
@@ -328,17 +305,6 @@ object StealthManager {
         return true
     }
 
-    private fun setEnabled(context: Context, className: String, state: Int) {
-        try {
-            context.packageManager.setComponentEnabledSetting(
-                ComponentName(context.packageName, className),
-                state,
-                PackageManager.DONT_KILL_APP
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not toggle $className", e)
-        }
-    }
 
     private fun generateSalt(): String {
         val bytes = ByteArray(16)

@@ -4,8 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -80,6 +82,21 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
 
         /** Same key [com.aistudio.breakfree.recovr.data.BreakFreeRepository] writes. */
         private const val KEY_LANGUAGE = "selected_language"
+
+        /** Launcher aliases used by Stealth Mode; their labels appear in system screens. */
+        private val STEALTH_ALIASES = listOf(
+            "com.aistudio.breakfree.recovr.alias.CalculatorAlias",
+            "com.aistudio.breakfree.recovr.alias.NotesAlias",
+            "com.aistudio.breakfree.recovr.alias.WeatherAlias"
+        )
+
+        /** Rate limit for the uninstall-guard tree walk (Settings emits many events). */
+        private const val GUARD_SCAN_INTERVAL_MS = 350L
+        private const val GUARD_MAX_NODES = 200
+        private const val GUARD_MAX_CHILDREN = 20
+
+        /** Re-read the app's own labels periodically so a Stealth Mode switch is noticed. */
+        private const val IDENTITIES_CACHE_TTL_MS = 60_000L
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -178,7 +195,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         if (packageName == this.packageName) return
 
         // Guard against deactivation, uninstall, or settings tampering during 90-day lock
-        if (checkAndGuardUninstallLock(packageName, event)) return
+        if (checkAndGuardUninstallLock()) return
 
         if (packageName in IGNORED_PACKAGES || isKeyboard(packageName)) return
 
@@ -217,63 +234,134 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
     }
 
     private var lastGuardToastMillis = 0L
+    private var lastGuardScanAtMillis = 0L
+    private var cachedAppIdentities: List<String>? = null
+    private var cachedAppIdentitiesAtMillis = 0L
+
+    private enum class UninstallAttempt { NONE, APP_INFO_SCREEN, CONFIRMATION_DIALOG }
 
     /**
-     * When the 90-day commitment is active, prevent the user from deactivating device admin,
-     * clicking "Deactivate & uninstall", force-stopping, clearing data, uninstalling BreakFree,
-     * or resetting the phone via Settings.
+     * When the 90-day commitment is active, stop the user on the one screen that can
+     * actually remove this app: its App Info page (the Uninstall / Force stop / Clear
+     * data controls) or the confirmation dialog that follows.
+     *
+     * Nothing else is touched. Earlier versions reacted to any Settings window that
+     * merely mentioned the app plus words like "accessibility" or "device admin", which
+     * closed the app while the user was only switching tasks or browsing Settings.
      *
      * @return true if an unauthorized deactivation/uninstall attempt was intercepted.
      */
-    private fun checkAndGuardUninstallLock(packageName: String, event: AccessibilityEvent?): Boolean {
+    private fun checkAndGuardUninstallLock(): Boolean {
         // Only enforce while the lock is active and within the 90-day window
         if (!UninstallLock.isActive(this) || UninstallLock.daysRemaining(this) <= 0) {
             return false
         }
 
-        val pkgLower = packageName.lowercase(Locale.ROOT)
+        // The event's package is only a hint: SystemUI and the launcher keep posting
+        // events while Settings — or this app — is in front. What matters is the window
+        // the user can actually see.
+        val root = rootInActiveWindow ?: return false
+        val windowPackage = root.packageName?.toString()?.lowercase(Locale.ROOT) ?: return false
+        if (windowPackage == this.packageName) return false
+        if (!isUninstallSurfacePackage(windowPackage)) return false
 
-        // 1. Check event text directly (fast path for system alert dialogs like "Deactivate & uninstall")
-        if (event != null) {
-            val eventTexts = event.text.joinToString(" ") { it.toString() }.lowercase(Locale.ROOT)
-            if (isTamperContent(eventTexts)) {
-                blockAndDismiss()
-                return true
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastGuardScanAtMillis < GUARD_SCAN_INTERVAL_MS) return false
+        lastGuardScanAtMillis = now
+
+        val attempt = try {
+            scanForUninstallAttempt(root)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error inspecting settings node tree", e)
+            UninstallAttempt.NONE
+        }
+
+        return when (attempt) {
+            UninstallAttempt.NONE -> false
+            UninstallAttempt.APP_INFO_SCREEN -> {
+                blockAndDismiss(closeSettings = false)
+                true
+            }
+            UninstallAttempt.CONFIRMATION_DIALOG -> {
+                blockAndDismiss(closeSettings = true)
+                true
+            }
+        }
+    }
+
+    /**
+     * Windows that can host an uninstall: system Settings, the package installer, the
+     * device-admin screens and the OEM security centers. The launcher, the recents
+     * screen and SystemUI are deliberately absent — they are never where an app is
+     * removed, and scanning them is what closed the app during ordinary use.
+     */
+    private fun isUninstallSurfacePackage(pkg: String): Boolean =
+        pkg == "android" ||
+            pkg.contains("settings") ||
+            pkg.contains("packageinstaller") ||
+            pkg.contains("security") ||
+            pkg.contains("safecenter") ||
+            pkg.contains("systemmanager")
+
+    /**
+     * Strings that identify this app on a system screen: the package name, the label the
+     * system currently shows (the neutral "Utilities" identity, or a disguise alias while
+     * Stealth Mode is on) and the branded name. Cached for the life of the service.
+     */
+    private fun appIdentities(): List<String> {
+        val now = SystemClock.elapsedRealtime()
+        cachedAppIdentities?.let { cached ->
+            if (now - cachedAppIdentitiesAtMillis < IDENTITIES_CACHE_TTL_MS) return cached
+        }
+
+        val identities = linkedSetOf(
+            packageName.lowercase(Locale.ROOT),
+            "breakfree",
+            "break free",
+            "تعافي"
+        )
+
+        try {
+            val info = packageManager.getApplicationInfo(packageName, 0)
+            packageManager.getApplicationLabel(info)?.toString()
+                ?.lowercase(Locale.ROOT)
+                ?.takeIf { it.isNotBlank() }
+                ?.let(identities::add)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not read own application label", e)
+        }
+
+        STEALTH_ALIASES.forEach { alias ->
+            try {
+                val component = ComponentName(this, alias)
+                if (packageManager.getComponentEnabledSetting(component) ==
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                ) {
+                    packageManager.getActivityInfo(component, 0).loadLabel(packageManager)
+                        ?.toString()
+                        ?.lowercase(Locale.ROOT)
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let(identities::add)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not read alias label for $alias", e)
             }
         }
 
-        // 2. Filter relevant packages where tamper actions, package managers or dialogs live
-        val isTargetPackage = pkgLower == "android" ||
-            pkgLower.contains("systemui") ||
-            pkgLower.contains("settings") ||
-            pkgLower.contains("packageinstaller") ||
-            pkgLower.contains("security") ||
-            pkgLower.contains("safecenter") ||
-            pkgLower.contains("systemmanager")
-
-        if (!isTargetPackage) return false
-
-        val root = rootInActiveWindow ?: return false
-        val shouldBlock = try {
-            scanForTampering(root)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error inspecting settings node tree", e)
-            false
+        return identities.toList().also {
+            cachedAppIdentities = it
+            cachedAppIdentitiesAtMillis = now
         }
-
-        if (shouldBlock) {
-            blockAndDismiss()
-            return true
-        }
-
-        return false
     }
 
-    private fun blockAndDismiss() {
+    private fun blockAndDismiss(closeSettings: Boolean) {
         Log.w(TAG, "Intercepted attempt to deactivate or uninstall BreakFree during 90-day lock!")
-        // Dismiss dialog/screen and return to safety
+        // A confirmation dialog is cancelled and the user is sent home, so the removal
+        // cannot be completed by accident. The App Info screen is only dismissed one step
+        // back: looking at the app's own settings is not a reason to throw the user out
+        // of Settings.
         performGlobalAction(GLOBAL_ACTION_BACK)
-        performGlobalAction(GLOBAL_ACTION_HOME)
+        if (closeSettings) performGlobalAction(GLOBAL_ACTION_HOME)
 
         val now = SystemClock.elapsedRealtime()
         if (now - lastGuardToastMillis > 2500L) {
@@ -288,105 +376,93 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Fast check on string content to identify deactivation/uninstallation dialogs. */
-    private fun isTamperContent(content: String): Boolean {
+    /** A control that can remove, force-stop or wipe this app. */
+    private fun isUninstallControl(content: String): Boolean {
         if (content.isBlank()) return false
 
-        // Standard Android system dialog when user taps "Uninstall" on an active device admin:
-        // "This app is an active device administrator and must be deactivated before uninstalling."
-        val isDeactivateDialog = content.contains("deactivate & uninstall") ||
+        val trimmed = content.trim()
+        if (trimmed == "إزالة" || trimmed == "uninstall") return true
+
+        return content.contains("uninstall") ||
+            content.contains("deactivate") ||
+            content.contains("force stop") ||
+            content.contains("clear data") ||
+            content.contains("clear storage") ||
+            content.contains("إلغاء التثبيت") ||
+            content.contains("إلغاء التنشيط") ||
+            content.contains("إزالة التطبيق") ||
+            content.contains("حذف التطبيق") ||
+            content.contains("إيقاف إجباري") ||
+            content.contains("مسح البيانات") ||
+            content.contains("مسح التخزين")
+    }
+
+    /**
+     * The standard system dialog shown when an active device administrator is removed:
+     * "This app is an active device administrator and must be deactivated before
+     * uninstalling." Only this app holds that role, so the text alone is unambiguous.
+     */
+    private fun isDeactivateDialogText(content: String): Boolean {
+        if (content.isBlank()) return false
+        return content.contains("deactivate & uninstall") ||
             content.contains("deactivate and uninstall") ||
             content.contains("active device administrator") ||
             content.contains("must be deactivated") ||
             content.contains("إلغاء التنشيط والإلغاء") ||
+            content.contains("إلغاء التنشيط والإزالة") ||
             content.contains("مشرف نشط للجهاز") ||
-            content.contains("إلغاء تنشيط") ||
-            content.contains("الغاء تنشيط")
-
-        val mentionsBreakFree = content.contains("breakfree") ||
-            content.contains("تعافي") ||
-            content.contains("com.aistudio.breakfree")
-
-        val isTamperVerb = content.contains("uninstall") ||
-            content.contains("إلغاء التثبيت") ||
-            content.contains("إزالة") ||
-            content.contains("force stop") ||
-            content.contains("إيقاف إجباري") ||
-            content.contains("clear data") ||
-            content.contains("مسح البيانات")
-
-        val isFactoryReset = content.contains("factory reset") ||
-            content.contains("erase all data") ||
-            content.contains("إعادة ضبط المصنع") ||
-            content.contains("محو جميع البيانات")
-
-        return isDeactivateDialog || (mentionsBreakFree && isTamperVerb) || isFactoryReset
+            content.contains("مشرف الجهاز النشط") ||
+            content.contains("يجب إلغاء تنشيطه")
     }
 
     /**
-     * Inspects the active window node tree to see if the user is attempting to deactivate BreakFree,
-     * uninstall it, clear data, or perform a factory reset.
+     * Walks the visible Settings/installer window and reports whether the user is on the
+     * screen that removes this app. Two things must both be present: something that names
+     * this app, and a control that removes it. A stray "Accessibility" or "Device admin"
+     * row on the Settings home screen no longer matches, and neither does the recents
+     * screen showing the app's card.
      */
-    private fun scanForTampering(root: AccessibilityNodeInfo): Boolean {
+    private fun scanForUninstallAttempt(root: AccessibilityNodeInfo): UninstallAttempt {
+        val identities = appIdentities()
         val stack = ArrayDeque<AccessibilityNodeInfo>()
         stack.addLast(root)
+
         var visited = 0
-        val maxNodes = 150
+        var mentionsApp = false
+        var hasUninstallControl = false
+        var hasDeactivateDialog = false
 
-        var mentionsBreakFree = false
-        var mentionsTamperAction = false
-
-        while (stack.isNotEmpty() && visited < maxNodes) {
+        while (stack.isNotEmpty() && visited < GUARD_MAX_NODES) {
             val node = stack.removeLast()
             visited++
 
-            val text = node.text?.toString()?.lowercase(Locale.ROOT)
-            val desc = node.contentDescription?.toString()?.lowercase(Locale.ROOT)
-            val combined = (text ?: "") + " " + (desc ?: "")
+            val text = node.text?.toString()?.lowercase(Locale.ROOT).orEmpty()
+            val desc = node.contentDescription?.toString()?.lowercase(Locale.ROOT).orEmpty()
+            val combined = "$text $desc".trim()
 
-            if (combined.isNotBlank()) {
-                if (isTamperContent(combined)) {
-                    return true
+            if (combined.isNotEmpty()) {
+                if (!mentionsApp && identities.any { combined.contains(it) }) {
+                    mentionsApp = true
                 }
-
-                if (combined.contains("breakfree") ||
-                    combined.contains("تعافي") ||
-                    combined.contains("com.aistudio.breakfree")
-                ) {
-                    mentionsBreakFree = true
+                if (!hasUninstallControl && isUninstallControl(combined)) {
+                    hasUninstallControl = true
                 }
-
-                if (combined.contains("uninstall") ||
-                    combined.contains("إلغاء التثبيت") ||
-                    combined.contains("إزالة") ||
-                    combined.contains("deactivate") ||
-                    combined.contains("إلغاء التنشيط") ||
-                    combined.contains("force stop") ||
-                    combined.contains("إيقاف إجباري") ||
-                    combined.contains("clear data") ||
-                    combined.contains("clear storage") ||
-                    combined.contains("مسح البيانات") ||
-                    combined.contains("device admin") ||
-                    combined.contains("مشرفو الجهاز") ||
-                    combined.contains("accessibility") ||
-                    combined.contains("إمكانية الوصول")
-                ) {
-                    mentionsTamperAction = true
+                if (!hasDeactivateDialog && isDeactivateDialogText(combined)) {
+                    hasDeactivateDialog = true
                 }
             }
 
-            if (mentionsBreakFree && mentionsTamperAction) {
-                return true
-            }
-
-            val childCount = minOf(node.childCount, 20)
+            val childCount = minOf(node.childCount, GUARD_MAX_CHILDREN)
             for (i in 0 until childCount) {
-                val child = node.getChild(i) ?: continue
-                stack.addLast(child)
+                node.getChild(i)?.let { stack.addLast(it) }
             }
         }
 
-        return false
+        return when {
+            hasDeactivateDialog -> UninstallAttempt.CONFIRMATION_DIALOG
+            mentionsApp && hasUninstallControl -> UninstallAttempt.APP_INFO_SCREEN
+            else -> UninstallAttempt.NONE
+        }
     }
 
     /**
@@ -799,7 +875,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
             language
         )
 
-        val smallIcon = if (stealth) R.drawable.ic_stat_neutral else R.drawable.ic_stat_shield
+        val smallIcon = R.drawable.ic_stat_shield
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(smallIcon)

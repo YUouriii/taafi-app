@@ -1,9 +1,13 @@
-package com.aistudio.breakfree.recovr.data
+﻿package com.aistudio.breakfree.recovr.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.aistudio.breakfree.recovr.model.CommunityCategory
-import com.aistudio.breakfree.recovr.model.CommunityPost
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import com.aistudio.breakfree.recovr.ai.AiProviderConfig
+import com.aistudio.breakfree.recovr.ai.AiProviderKind
 import com.aistudio.breakfree.recovr.model.DailyCheckIn
 import com.aistudio.breakfree.recovr.model.StreakState
 import com.aistudio.breakfree.recovr.model.UserProfile
@@ -13,7 +17,29 @@ import org.json.JSONObject
 
 class BreakFreeRepository(context: Context) {
 
+    private val appContext = context.applicationContext
     private val prefs: SharedPreferences = context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
+
+    /**
+     * API keys live in [EncryptedSharedPreferences]: a key is a credential, and the
+     * ordinary preference file is readable by anything with access to the app's data.
+     * Null when the keystore is unavailable (corrupted key, restored backup): the app
+     * then simply behaves as if no key were configured instead of crashing at startup.
+     */
+    private val securePrefs: SharedPreferences? by lazy {
+        runCatching {
+            val masterKey = MasterKey.Builder(appContext)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                appContext,
+                SECURE_PREFS_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }.getOrNull()
+    }
 
     companion object {
         private const val KEY_CLEAN_SINCE = "clean_since_timestamp"
@@ -22,32 +48,88 @@ class BreakFreeRepository(context: Context) {
         private const val KEY_SOS_COUNT = "sos_completed_count"
         private const val KEY_RELAPSES_COUNT = "relapses_count"
         private const val KEY_LANGUAGE = "selected_language"
-        private const val KEY_COMMUNITY_POSTS = "community_posts_json"
+        private const val KEY_COMMUNITY_CHEERED = "community_cheered_ids"
         private const val KEY_CHECK_INS_PREFIX = "checkins_json_"
         private const val KEY_PENDING_SYNC_PREFIX = "pending_sync_dates_"
-        private const val KEY_GEMINI_API_KEY = "gemini_api_key"
+
+        // AI provider settings. The key itself is kept in the encrypted store.
+        private const val KEY_AI_PROVIDER = "ai_provider_kind"
+        private const val KEY_AI_BASE_URL = "ai_base_url"
+        private const val KEY_AI_MODEL = "ai_model"
+        private const val KEY_AI_API_KEY = "ai_api_key"
+
+        // Pre-1.3 single-provider key, migrated on first read.
+        private const val LEGACY_KEY_GEMINI_API_KEY = "gemini_api_key"
+
+        private const val SECURE_PREFS_NAME = "breakfree_ai_secure"
 
         /** Local storage bucket used while the user is signed out. */
         const val LOCAL_OWNER = "local"
     }
 
-    fun getGeminiApiKey(): String? {
-        val stored = prefs.getString(KEY_GEMINI_API_KEY, null)?.trim()
-        if (!stored.isNullOrBlank()) return stored
-        return try {
-            val field = com.aistudio.breakfree.recovr.BuildConfig::class.java.getField("GEMINI_API_KEY")
-            val buildKey = field.get(null) as? String
-            buildKey?.trim()?.takeIf { it.isNotBlank() }
-        } catch (e: Exception) {
-            null
+    /**
+     * The AI provider the user configured. Any OpenAI-compatible endpoint works (OpenAI,
+     * OpenRouter, Groq, DeepSeek, Mistral, a local server...), as does Gemini and Claude.
+     * A missing key means "no model configured": the counselor falls back to its offline
+     * guidance instead of pretending to call something.
+     */
+    fun getAiConfig(): AiProviderConfig {
+        migrateLegacyGeminiKey()
+        return AiProviderConfig(
+            kind = AiProviderKind.fromKey(prefs.getString(KEY_AI_PROVIDER, null)),
+            baseUrl = prefs.getString(KEY_AI_BASE_URL, null).orEmpty(),
+            model = prefs.getString(KEY_AI_MODEL, null).orEmpty(),
+            apiKey = securePrefs?.getString(KEY_AI_API_KEY, null).orEmpty()
+        )
+    }
+
+    fun saveAiConfig(config: AiProviderConfig) {
+        prefs.edit()
+            .putString(KEY_AI_PROVIDER, config.kind.key)
+            .putString(KEY_AI_BASE_URL, config.baseUrl.trim())
+            .putString(KEY_AI_MODEL, config.model.trim())
+            .apply()
+
+        val key = config.apiKey.trim()
+        val secure = securePrefs ?: return
+        if (key.isBlank()) {
+            secure.edit().remove(KEY_AI_API_KEY).apply()
+        } else {
+            secure.edit().putString(KEY_AI_API_KEY, key).apply()
         }
     }
 
-    fun saveGeminiApiKey(key: String?) {
-        if (key.isNullOrBlank()) {
-            prefs.edit().remove(KEY_GEMINI_API_KEY).apply()
-        } else {
-            prefs.edit().putString(KEY_GEMINI_API_KEY, key.trim()).apply()
+    fun clearAiApiKey() {
+        securePrefs?.edit()?.remove(KEY_AI_API_KEY)?.apply()
+    }
+
+    /** Moves a key saved by an older build out of the plain preference file. */
+    private fun migrateLegacyGeminiKey() {
+        val secure = securePrefs ?: return
+        if (secure.contains(KEY_AI_API_KEY)) {
+            prefs.edit().remove(LEGACY_KEY_GEMINI_API_KEY).apply()
+            return
+        }
+        val legacy = prefs.getString(LEGACY_KEY_GEMINI_API_KEY, null)?.trim()
+        if (legacy.isNullOrBlank()) return
+        secure.edit().putString(KEY_AI_API_KEY, legacy).apply()
+        prefs.edit()
+            .remove(LEGACY_KEY_GEMINI_API_KEY)
+            .putString(KEY_AI_PROVIDER, AiProviderKind.GEMINI.key)
+            .apply()
+    }
+
+    /** True when a validated network is available right now. */
+    fun isOnline(): Boolean {
+        return try {
+            val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return false
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -107,9 +189,9 @@ class BreakFreeRepository(context: Context) {
      * Merge a profile pulled from Firestore into the local store.
      *
      * Policy, in order of precedence:
-     *  1. A relapse recorded on this device but not yet uploaded wins — otherwise an
+     *  1. A relapse recorded on this device but not yet uploaded wins - otherwise an
      *     offline relapse would be undone by the longer cloud streak.
-     *  2. A relapse recorded in the cloud but not seen here wins — a second device must
+     *  2. A relapse recorded in the cloud but not seen here wins - a second device must
      *     not resurrect a streak that was already reset.
      *  3. Same history on both sides: the longer current streak wins, so a fresh
      *     install adopts the account's streak.
@@ -268,80 +350,27 @@ class BreakFreeRepository(context: Context) {
         return out
     }
 
+
     // ---------------------------------------------------------------------------------
-    // Anonymous community: on-device only, and empty for a new install (no fake users).
+    // Anonymous community: the feed is public and cloud-only. Nothing is written to the
+    // device, so a post either reaches every user or does not exist. Only the "I bumped
+    // this" flags are local, because they describe this device's own taps.
     // ---------------------------------------------------------------------------------
 
-    fun getCommunityPosts(): List<CommunityPost> {
-        val raw = prefs.getString(KEY_COMMUNITY_POSTS, null)
-        if (raw.isNullOrBlank()) return emptyList()
-        return try {
-            val list = mutableListOf<CommunityPost>()
-            val arr = JSONArray(raw)
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                list.add(
-                    CommunityPost(
-                        id = obj.getString("id"),
-                        authorAlias = obj.getString("authorAlias"),
-                        authorAvatarBg = obj.optLong("authorAvatarBg", 0xFF10B981),
-                        daysClean = obj.getInt("daysClean"),
-                        category = try {
-                            CommunityCategory.valueOf(obj.getString("category"))
-                        } catch (e: Exception) {
-                            CommunityCategory.DAILY_MOTIVATION
-                        },
-                        contentEn = obj.getString("contentEn"),
-                        contentAr = obj.getString("contentAr"),
-                        timestampMillis = obj.getLong("timestampMillis"),
-                        fistBumps = obj.getInt("fistBumps"),
-                        userCheered = obj.optBoolean("userCheered", false)
-                    )
-                )
-            }
-            list
-        } catch (e: Exception) {
-            emptyList()
-        }
+    fun getCheeredPostIds(): Set<String> {
+        val raw = prefs.getString(KEY_COMMUNITY_CHEERED, null) ?: return emptySet()
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
     }
 
-    fun saveCommunityPosts(posts: List<CommunityPost>) {
-        val arr = JSONArray()
-        for (p in posts) {
-            val obj = JSONObject()
-            obj.put("id", p.id)
-            obj.put("authorAlias", p.authorAlias)
-            obj.put("authorAvatarBg", p.authorAvatarBg)
-            obj.put("daysClean", p.daysClean)
-            obj.put("category", p.category.name)
-            obj.put("contentEn", p.contentEn)
-            obj.put("contentAr", p.contentAr)
-            obj.put("timestampMillis", p.timestampMillis)
-            obj.put("fistBumps", p.fistBumps)
-            obj.put("userCheered", p.userCheered)
-            arr.put(obj)
-        }
-        prefs.edit().putString(KEY_COMMUNITY_POSTS, arr.toString()).apply()
+    fun setPostCheered(postId: String, cheered: Boolean) {
+        if (postId.isBlank()) return
+        val current = getCheeredPostIds()
+        val updated = if (cheered) current + postId else current - postId
+        prefs.edit().putString(KEY_COMMUNITY_CHEERED, updated.joinToString(",")).apply()
     }
 
-    fun addCommunityPost(post: CommunityPost): List<CommunityPost> {
-        val existing = getCommunityPosts().toMutableList()
-        existing.add(0, post)
-        saveCommunityPosts(existing)
-        return existing
-    }
-
-    fun toggleFistBump(postId: String): List<CommunityPost> {
-        val list = getCommunityPosts().map { post ->
-            if (post.id == postId) {
-                val newCheered = !post.userCheered
-                val newCount = if (newCheered) post.fistBumps + 1 else maxOf(0, post.fistBumps - 1)
-                post.copy(fistBumps = newCount, userCheered = newCheered)
-            } else {
-                post
-            }
-        }
-        saveCommunityPosts(list)
-        return list
+    /** Drops posts cached by older builds that stored the feed on-device. */
+    fun clearLegacyCommunityCache() {
+        prefs.edit().remove("community_posts_json").apply()
     }
 }

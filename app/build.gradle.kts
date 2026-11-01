@@ -15,8 +15,8 @@ android {
     applicationId = "com.aistudio.breakfree.recovr"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "1.2"
+    versionCode = 4
+    versionName = "1.3"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -113,6 +113,7 @@ dependencies {
   // implementation(libs.coil.compose)
   implementation(libs.firebase.ai)
   implementation(libs.firebase.firestore)
+implementation(libs.firebase.database)
   implementation(libs.firebase.auth)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)

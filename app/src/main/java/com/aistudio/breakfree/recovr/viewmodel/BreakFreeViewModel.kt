@@ -10,10 +10,12 @@ import android.os.VibratorManager
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.aistudio.breakfree.recovr.ai.AiProviderConfig
+import com.aistudio.breakfree.recovr.ai.AiRecoveryCounselor
 import com.aistudio.breakfree.recovr.ai.CrisisSupport
-import com.aistudio.breakfree.recovr.ai.GeminiRecoveryCounselor
 import com.aistudio.breakfree.recovr.data.BreakFreeRepository
 import com.aistudio.breakfree.recovr.data.FirestoreRecoveryRepository
+import com.aistudio.breakfree.recovr.data.RealtimeCommunityRepository
 import com.aistudio.breakfree.recovr.localization.Translations
 import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.model.ChatMessage
@@ -50,6 +52,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.CancellationException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -59,6 +64,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val repository = BreakFreeRepository(application)
     private val firestoreRepo = FirestoreRecoveryRepository(application)
+    private val rtdbCommunityRepo = RealtimeCommunityRepository()
     private val monitoringPreferences = MonitoringPreferences(application)
 
     // Language state
@@ -178,8 +184,9 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     private val _showRelapseConfirmation = MutableStateFlow(false)
     val showRelapseConfirmation: StateFlow<Boolean> = _showRelapseConfirmation.asStateFlow()
 
-    // Anonymous Community
-    private val _communityPosts = MutableStateFlow(repository.getCommunityPosts())
+    // Anonymous Community. The feed is public and lives in Firestore: a post exists for
+    // everyone or not at all, so there is no on-device copy to fall back to.
+    private val _communityPosts = MutableStateFlow<List<CommunityPost>>(emptyList())
     val communityPosts: StateFlow<List<CommunityPost>> = _communityPosts.asStateFlow()
 
     private val _selectedCategory = MutableStateFlow(CommunityCategory.ALL)
@@ -187,6 +194,14 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _showNewPostDialog = MutableStateFlow(false)
     val showNewPostDialog: StateFlow<Boolean> = _showNewPostDialog.asStateFlow()
+
+    /** True while a post is being written to Firestore; the dialog shows a spinner. */
+    private val _isPublishingPost = MutableStateFlow(false)
+    val isPublishingPost: StateFlow<Boolean> = _isPublishingPost.asStateFlow()
+
+    /** True when the feed could not be read (offline, or rules not deployed). */
+    private val _communityError = MutableStateFlow(false)
+    val communityError: StateFlow<Boolean> = _communityError.asStateFlow()
 
     // AI Companion Chat
     private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -203,13 +218,14 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     private val _pendingChatMessage = MutableStateFlow<String?>(null)
     val pendingChatMessage: StateFlow<String?> = _pendingChatMessage.asStateFlow()
 
-    private val _geminiApiKey = MutableStateFlow<String?>(repository.getGeminiApiKey())
-    val geminiApiKey: StateFlow<String?> = _geminiApiKey.asStateFlow()
+    private val _aiConfig = MutableStateFlow(repository.getAiConfig())
+    val aiConfig: StateFlow<AiProviderConfig> = _aiConfig.asStateFlow()
 
-    // Gemini AI Counselor with dynamic Daily Check-in context and API key support
-    private val geminiCounselor = GeminiRecoveryCounselor(
+    // Recovery counselor. It reads the configuration on every message, so switching
+    // provider or key takes effect immediately without recreating the view model.
+    private val aiCounselor = AiRecoveryCounselor(
         getRecentCheckIns = { _dailyCheckIns.value },
-        getApiKey = { repository.getGeminiApiKey() }
+        getConfig = { repository.getAiConfig() }
     )
 
     private var liveTimerJob: Job? = null
@@ -234,6 +250,8 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         observeGracePeriodResolutions()
         initInitialChatMessages()
         _dailyCheckIns.value = repository.getCheckIns(currentOwner)
+        // Posts cached on-device by older builds are not public posts; drop them.
+        repository.clearLegacyCommunityCache()
         initAuthListener()
         // If a duress PIN wiped recovery data, the in-memory streak/check-ins must be
         // re-read from storage once duress mode ends, so the dashboard shows the truth.
@@ -243,7 +261,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
                 if (wasDuress && !isDuress) {
                     _streakState.value = repository.getStreakState()
                     _dailyCheckIns.value = repository.getCheckIns(currentOwner)
-                    _communityPosts.value = repository.getCommunityPosts()
+                    _communityPosts.value = emptyList()
                 }
                 wasDuress = isDuress
             }
@@ -274,8 +292,10 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
 
         // Show this account's own on-device logs immediately, even while offline.
         _dailyCheckIns.value = repository.getCheckIns(owner)
-        // Community is global: show cached posts immediately, then refresh from cloud.
-        _communityPosts.value = repository.getCommunityPosts()
+        // The community is public: signed-out users have nothing to show, and the feed
+        // is only ever filled by the Firestore snapshot below.
+        _communityPosts.value = emptyList()
+        _communityError.value = false
 
         if (user == null) {
             cloudProfileCreatedAt = null
@@ -329,27 +349,28 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         communityPostsObservationJob?.cancel()
         communityPostsObservationJob = viewModelScope.launch {
             try {
-                firestoreRepo.observeCommunityPosts()
+                rtdbCommunityRepo.observeCommunityPosts()
                     .catch { e ->
                         Log.w("BreakFreeVM", "Community posts observation error: ${e.message}")
+                        _communityError.value = true
                     }
                     .collect { cloudPosts ->
-                        // Merge cloud posts with local cache (union by id).
-                        val local = repository.getCommunityPosts()
-                        val byId = LinkedHashMap<String, CommunityPost>()
-                        cloudPosts.forEach { byId[it.id] = it }
-                        local.forEach { p ->
-                            if (!byId.containsKey(p.id)) byId[p.id] = p
-                        }
-                        val merged = byId.values.sortedByDescending { it.timestampMillis }
-                        _communityPosts.value = merged
-                        repository.saveCommunityPosts(merged)
+                        // The cloud feed is the whole feed. No local posts are merged in,
+                        // so what everyone sees is exactly what Firestore holds. The
+                        // "I bumped this" flags are re-read on every emission so a fresh
+                        // snapshot cannot undo a tap that happened a second ago.
+                        _communityError.value = false
+                        val cheered = repository.getCheeredPostIds()
+                        _communityPosts.value = cloudPosts
+                            .map { post -> post.copy(userCheered = post.id in cheered) }
+                            .sortedByDescending { it.timestampMillis }
                     }
             } catch (e: Exception) {
                 Log.w("BreakFreeVM", "Failed to start observing community posts: ${e.message}")
             }
         }
     }
+
     private fun observeFirestoreCheckIns(uid: String) {
         checkInsObservationJob?.cancel()
         checkInsObservationJob = viewModelScope.launch {
@@ -836,85 +857,162 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         _selectedCategory.value = category
     }
 
+    /** True when the user can publish: signed in and actually connected. */
+    fun canPublishPost(): Boolean =
+        _currentUser.value != null && repository.isOnline()
+
     fun toggleFistBump(postId: String) {
-        val wasCheered = _communityPosts.value.firstOrNull { it.id == postId }?.userCheered ?: false
-        _communityPosts.value = repository.toggleFistBump(postId)
+        val post = _communityPosts.value.firstOrNull { it.id == postId } ?: return
+        if (_currentUser.value == null) {
+            toast(Translations.t("community_signin_required", _language.value))
+            return
+        }
+        if (!repository.isOnline()) {
+            toast(Translations.t("community_offline", _language.value))
+            return
+        }
+
+        val nowCheered = !post.userCheered
+        repository.setPostCheered(postId, nowCheered)
+        _communityPosts.value = _communityPosts.value.map {
+            if (it.id == postId) {
+                it.copy(
+                    userCheered = nowCheered,
+                    fistBumps = (it.fistBumps + if (nowCheered) 1 else -1).coerceAtLeast(0)
+                )
+            } else {
+                it
+            }
+        }
         triggerHaptic(longVibe = false)
-        val user = _currentUser.value
-        if (user != null) {
-            viewModelScope.launch {
-                try {
-                    firestoreRepo.toggleFistBump(postId, wasCheered)
-                } catch (e: Exception) {
-                    Log.w("BreakFreeVM", "Fist bump sync failed: ${e.message}")
+
+        viewModelScope.launch {
+            try {
+                rtdbCommunityRepo.toggleFistBump(postId, currentlyCheered = post.userCheered)
+            } catch (e: Exception) {
+                Log.w("BreakFreeVM", "Fist bump sync failed: ${e.message}")
+                // Put the tap back where it was: the count is public, so it must not
+                // drift away from what the server holds.
+                repository.setPostCheered(postId, post.userCheered)
+                _communityPosts.value = _communityPosts.value.map {
+                    if (it.id == postId) {
+                        it.copy(userCheered = post.userCheered, fistBumps = post.fistBumps)
+                    } else {
+                        it
+                    }
                 }
             }
         }
     }
 
     fun openNewPostDialog(show: Boolean) {
+        if (show && !canPublishPost()) {
+            val message = if (_currentUser.value == null) {
+                Translations.t("community_signin_required", _language.value)
+            } else {
+                Translations.t("community_offline", _language.value)
+            }
+            toast(message)
+            return
+        }
         _showNewPostDialog.value = show
     }
 
+    /**
+     * Publishes a post to the public feed. There is no local copy: if the device is
+     * offline or signed out, nothing is written and the dialog stays open, so the feed
+     * can never contain a post that only its author can see.
+     */
     fun createPost(alias: String, content: String, category: CommunityCategory) {
-        if (content.isBlank()) return
-        val effectiveAlias = if (alias.isBlank()) {
-            if (_language.value == AppLanguage.ARABIC) "صامد_مجهول #${(100..999).random()}" else "SoberWarrior #${(100..999).random()}"
-        } else {
-            alias
+        if (content.isBlank() || _isPublishingPost.value) return
+
+        if (_currentUser.value == null) {
+            toast(Translations.t("community_signin_required", _language.value))
+            return
         }
+        if (!repository.isOnline()) {
+            toast(Translations.t("community_offline", _language.value))
+            return
+        }
+
+        val effectiveAlias = if (alias.isBlank()) {
+            if (_language.value == AppLanguage.ARABIC) {
+                "صامد_مجهول #${(100..999).random()}"
+            } else {
+                "SoberWarrior #${(100..999).random()}"
+            }
+        } else {
+            alias.trim()
+        }
+
         val newPost = CommunityPost(
             id = UUID.randomUUID().toString(),
             authorAlias = effectiveAlias,
             daysClean = _streakState.value.days.toInt(),
             category = category,
-            contentEn = content,
-            contentAr = content,
+            contentEn = content.trim(),
+            contentAr = content.trim(),
             timestampMillis = System.currentTimeMillis(),
-            fistBumps = 1,
-            userCheered = true
+            fistBumps = 0,
+            userCheered = false
         )
-        _communityPosts.value = repository.addCommunityPost(newPost)
-        _showNewPostDialog.value = false
-        val user = _currentUser.value
-        if (user == null) {
-            android.widget.Toast.makeText(
-                getApplication(),
-                "Post saved locally. Sign in to share with the community.",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            return
-        }
+
+        _isPublishingPost.value = true
         viewModelScope.launch {
-            val result = try {
-                firestoreRepo.saveCommunityPost(newPost)
+            val outcome = try {
+                // A write that is queued while the network is flaky never completes on its
+                // own, which used to leave the spinner running forever. Bound the wait.
+                withTimeout(PUBLISH_TIMEOUT_MS) { rtdbCommunityRepo.saveCommunityPost(newPost) }
+            } catch (e: TimeoutCancellationException) {
+                // Note: this is a CancellationException subclass, so it must be caught
+                // before the general cancellation branch or it would silently kill the job.
+                Log.w("BreakFreeVM", "Community post upload timed out")
+                e
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Log.w("BreakFreeVM", "Community post upload failed: ${e.message}")
-                null
+                Log.w("BreakFreeVM", "Community post upload failed: ${e.message}", e)
+                e
+            } finally {
+                _isPublishingPost.value = false
             }
-            if (result == null) {
-                android.widget.Toast.makeText(
-                    getApplication(),
-                    "Post saved locally only — cloud sync failed. Check logcat / rules / App Check.",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
+
+            if (outcome is String) {
+                _showNewPostDialog.value = false
+                toast(Translations.t("community_post_published", _language.value))
             } else {
-                android.widget.Toast.makeText(
-                    getApplication(),
-                    "Post shared with the community.",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
+                toast(
+                    Translations.t("community_post_failed", _language.value) +
+                        " " + publishErrorHint(outcome as? Exception)
+                )
             }
         }
     }
 
-    // AI Companion Chat with Gemini AI Logic
+    /** Short, honest reason under the failure toast, so a stuck feed is diagnosable. */
+    private fun publishErrorHint(error: Exception?): String {
+        val message = error?.message?.lowercase().orEmpty()
+        val key = when {
+            error is TimeoutCancellationException -> "community_error_timeout"
+            message.contains("permission denied") -> "community_error_permission"
+            message.contains("network") || message.contains("unable to resolve") ||
+                message.contains("timeout") -> "community_error_network"
+            else -> "community_error_network"
+        }
+        return Translations.t(key, _language.value)
+    }
+
+    private fun toast(message: String) {
+        android.widget.Toast.makeText(getApplication(), message, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    // AI Companion Chat
     private fun initInitialChatMessages() {
         val isAr = _language.value == AppLanguage.ARABIC
         val welcome = if (isAr) {
-            "أهلاً بك يا بطل في مرشد الصمود الذكي (BreakFree AI مدعوماً بـ Gemini). أنا هنا لدعمك على مدار الساعة، ومربوط بسجل مشاعرك ورغباتك اليومية لتقديم إرشاد دقيق مبني على علوم الأعصاب والسلوك المعرفي."
+            "أهلاً بك يا بطل في مرشد الصمود الذكي (BreakFree AI). أنا هنا لدعمك على مدار الساعة، ومربوط بسجل مشاعرك ورغباتك اليومية لتقديم إرشاد دقيق مبني على علوم الأعصاب والسلوك المعرفي."
         } else {
-            "Welcome to the BreakFree Resilience Companion powered by Gemini AI. I am attuned to your daily mood logs and urge intensity to provide personalized CBT urge surfing guidance."
+            "Welcome to the BreakFree Resilience Companion. I am attuned to your daily mood logs and urge intensity to provide personalized CBT urge surfing guidance."
         }
         _chatMessages.value = listOf(
             ChatMessage(
@@ -925,9 +1023,15 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
-    fun setGeminiApiKey(key: String?) {
-        repository.saveGeminiApiKey(key)
-        _geminiApiKey.value = repository.getGeminiApiKey()
+    /** Saves the provider/model/base URL/key the user chose. Takes effect immediately. */
+    fun setAiConfig(config: AiProviderConfig) {
+        repository.saveAiConfig(config)
+        _aiConfig.value = repository.getAiConfig()
+    }
+
+    fun clearAiApiKey() {
+        repository.clearAiApiKey()
+        _aiConfig.value = repository.getAiConfig()
     }
 
     fun sendChatMessage(text: String) {
@@ -971,7 +1075,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
 
         viewModelScope.launch {
             try {
-                val reply = geminiCounselor.sendChatMessage(
+                val reply = aiCounselor.sendChatMessage(
                     userMessage = text,
                     cleanDays = _streakState.value.days,
                     language = _language.value
@@ -983,6 +1087,12 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
                     isFallback = reply.isFallback
                 )
                 _chatMessages.update { it + aiMsg }
+
+                // Surface the real reason when the model call failed, so the app never
+                // silently pretends to be connected while answering from offline guidance.
+                if (reply.isFallback && !reply.error.isNullOrBlank()) {
+                    toast("AI error: ${reply.error}")
+                }
             } finally {
                 _isAiLoading.value = false
                 triggerHaptic(longVibe = false)
@@ -1012,5 +1122,10 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         } catch (e: Exception) {
             // Ignore if vibrator permission or hardware is unavailable
         }
+    }
+
+    companion object {
+        /** How long a community write may stay unacknowledged before we call it failed. */
+        private const val PUBLISH_TIMEOUT_MS = 20_000L
     }
 }

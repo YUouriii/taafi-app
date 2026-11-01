@@ -37,11 +37,6 @@ class StealthPreferences(context: Context) {
         get() = plain.getBoolean(KEY_STEALTH_ENABLED, false)
         set(value) = plain.edit().putBoolean(KEY_STEALTH_ENABLED, value).apply()
 
-    /** Which neutral disguise is shown on the launcher. */
-    var disguisePreset: DisguisePreset
-        get() = DisguisePreset.fromKey(plain.getString(KEY_DISGUISE_PRESET, DisguisePreset.CALCULATOR.key))
-        set(value) = plain.edit().putString(KEY_DISGUISE_PRESET, value.key).apply()
-
     /** Whether the real dashboard is locked behind biometric/PIN. */
     var appLockEnabled: Boolean
         get() = plain.getBoolean(KEY_APP_LOCK_ENABLED, true)
@@ -140,7 +135,6 @@ class StealthPreferences(context: Context) {
                 .getBoolean("discreet_notifications", true)
 
         private const val KEY_STEALTH_ENABLED = "stealth_enabled"
-        private const val KEY_DISGUISE_PRESET = "disguise_preset"
         private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
         private const val KEY_AUTO_LOCK_MINUTES = "auto_lock_minutes"
         private const val KEY_DISCREET_NOTIFICATIONS = "discreet_notifications"
@@ -156,13 +150,3 @@ class StealthPreferences(context: Context) {
     }
 }
 
-enum class DisguisePreset(val key: String, val label: String, val aliasClass: String) {
-    CALCULATOR("calculator", "Calculator", "com.aistudio.breakfree.recovr.alias.CalculatorAlias"),
-    NOTES("notes", "Notes", "com.aistudio.breakfree.recovr.alias.NotesAlias"),
-    WEATHER("weather", "Weather", "com.aistudio.breakfree.recovr.alias.WeatherAlias");
-
-    companion object {
-        fun fromKey(key: String?): DisguisePreset =
-            entries.firstOrNull { it.key == key } ?: CALCULATOR
-    }
-}

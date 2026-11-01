@@ -234,33 +234,35 @@ class FirestoreRecoveryRepository(
         )
     }
 
-    // Publish a new community post. Returns the server-assigned id (or null on failure).
-    suspend fun saveCommunityPost(post: CommunityPost): String? {
-        return try {
-            val docRef = db.collection("community_posts").document(post.id)
-            val payload = hashMapOf<String, Any>(
-                "authorAlias" to post.authorAlias,
-                "authorAvatarBg" to post.authorAvatarBg,
-                "daysClean" to post.daysClean,
-                "category" to post.category.name,
-                "contentEn" to post.contentEn,
-                "contentAr" to post.contentAr,
-                "timestampMillis" to post.timestampMillis,
-                "fistBumps" to post.fistBumps,
-                "createdAt" to FieldValue.serverTimestamp()
-            )
+    // Publish a new community post. Returns the server-assigned id; throws when the write
+    // is rejected or never acknowledged, so the caller can tell the user why.
+    suspend fun saveCommunityPost(post: CommunityPost): String {
+        val docRef = db.collection("community_posts").document(post.id)
+        val payload = hashMapOf<String, Any>(
+            "authorAlias" to post.authorAlias,
+            "authorAvatarBg" to post.authorAvatarBg,
+            "daysClean" to post.daysClean,
+            "category" to post.category.name,
+            "contentEn" to post.contentEn,
+            "contentAr" to post.contentAr,
+            "timestampMillis" to post.timestampMillis,
+            "fistBumps" to post.fistBumps,
+            "createdAt" to FieldValue.serverTimestamp()
+        )
+        try {
             docRef.set(payload).await()
-            Log.d("FirestoreRepo", "Community post saved: ${post.id}")
-            post.id
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, "community_posts/${post.id}")
-            null
+            throw e
         }
+        Log.d("FirestoreRepo", "Community post saved: ${post.id}")
+        return post.id
     }
 
-    // Increment the fist-bump count for a post.
+    // Increment the fist-bump count for a post. Throws on failure so the caller can put
+    // its optimistic count back: the number is public and must not drift from the server.
     suspend fun toggleFistBump(postId: String, currentlyCheered: Boolean) {
         try {
             val docRef = db.collection("community_posts").document(postId)
@@ -273,6 +275,7 @@ class FirestoreRecoveryRepository(
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.UPDATE, "community_posts/$postId")
+            throw e
         }
     }
 }

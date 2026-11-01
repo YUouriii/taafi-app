@@ -125,20 +125,31 @@ object Translations {
         "ai_chip_why_started" to Pair("Remind me why I started", "ذكرني بأسبابي للتعافي"),
         "ai_sign_in_required_title" to Pair("Sign In with Google to Unlock AI", "سجّل الدخول عبر Google لتفعيل المساعد الذكي"),
         "ai_sign_in_required_desc" to Pair(
-            "Sign in with your Google account to enable real-time Gemini AI counseling tailored to your recovery journey.",
-            "سجّل الدخول بحساب Google الخاص بك لتفعيل الإرشاد الذكي المدعوم بنموذج Gemini والمخصص لرحلة تعافيك."
+            "Sign in with your Google account to enable real-time AI counseling tailored to your recovery journey.",
+            "سجّل الدخول بحساب Google الخاص بك لتفعيل الإرشاد الذكي المخصص لرحلة تعافيك."
         ),
         "ai_sign_in_button" to Pair("Sign in with Google", "تسجيل الدخول باستخدام Google"),
-        "ai_api_key_btn" to Pair("Gemini Key", "مفتاح Gemini"),
-        "ai_api_key_dialog_title" to Pair("Configure Gemini AI Key", "إعداد مفتاح Gemini AI"),
-        "ai_api_key_dialog_desc" to Pair(
-            "BreakFree uses Google's cheapest & fastest free models (Gemini 1.5 Flash / 2.0 Flash). You can enter your personal free API key from Google AI Studio to ensure 100% reliable, quota-free responses.",
-            "يستخدم تعافي نماذج Gemini المجانية والأسرع (Gemini 1.5 Flash / 2.0 Flash). يمكنك إدخال مفتاحك المجاني من Google AI Studio لضمان عمل الخدمة بدون انقطاع."
+        "ai_api_key_btn" to Pair("AI Provider", "مزوّد الذكاء الاصطناعي"),
+        "ai_provider_dialog_title" to Pair("Connect your AI model", "اربط نموذج الذكاء الاصطناعي"),
+        "ai_provider_dialog_desc" to Pair(
+            "Bring any provider and your own API key: Google Gemini, OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Claude, or any OpenAI-compatible endpoint (a local server works too). The key is stored encrypted on this device and never leaves it except in requests to the provider you chose.",
+            "استخدم أي مزوّد ومفتاح API الخاص بك: Google Gemini أو OpenAI أو OpenRouter أو Groq أو DeepSeek أو Mistral أو Claude أو أي خدمة متوافقة مع OpenAI (حتى خادم محلي). يُحفظ المفتاح مشفّراً على هذا الجهاز، ولا يُرسل إلا إلى المزوّد الذي اخترته."
         ),
-        "ai_api_key_get_free" to Pair("Get Free Key (Google AI Studio)", "احصل على مفتاح مجاني (Google AI Studio)"),
-        "ai_api_key_save" to Pair("Save Key", "حفظ المفتاح"),
-        "ai_api_key_clear" to Pair("Clear", "مسح"),
-        "ai_api_key_active" to Pair("Gemini 1.5 Flash (Free Tier)", "نموذج Gemini 1.5 Flash المجاني"),
+        "ai_provider_label" to Pair("Provider", "المزوّد"),
+        "ai_model_label" to Pair("Model", "النموذج"),
+        "ai_base_url_label" to Pair("Base URL (optional)", "عنوان الخدمة (اختياري)"),
+        "ai_api_key_label" to Pair("API key", "مفتاح API"),
+        "ai_api_key_save" to Pair("Save", "حفظ"),
+        "ai_api_key_clear" to Pair("Clear key", "مسح المفتاح"),
+        "ai_get_key" to Pair("Get an API key", "احصل على مفتاح API"),
+        "ai_test_connection" to Pair("Test connection", "اختبار الاتصال"),
+        "ai_load_models" to Pair("Load models", "تحميل النماذج"),
+        "ai_loading_models" to Pair("Loading models…", "جارٍ تحميل النماذج…"),
+        "ai_models_none" to Pair("No models returned — enter one manually.", "لم تُرجع أي نماذج — أدخلها يدوياً."),
+        "ai_models_failed" to Pair("Couldn't load models — enter one manually.", "تعذّر تحميل النماذج — أدخلها يدوياً."),
+        "ai_offline_mode" to Pair("Offline guidance (no model connected)", "إرشاد دون اتصال (لا يوجد نموذج متصل)"),
+        "ai_provider_saved" to Pair("AI provider saved", "تم حفظ مزوّد الذكاء الاصطناعي"),
+        "ai_key_required" to Pair("Enter an API key to use this model.", "أدخل مفتاح API لاستخدام هذا النموذج."),
 
         // Community
         "community_title" to Pair("Anonymous Brotherhood", "مجتمع التعافي المجهول"),
@@ -150,6 +161,44 @@ object Translations {
         "post_content_label" to Pair("Your insight, milestone, or victory...", "اكتب فائدة، إنجاز، أو نصيحة للأخوة..."),
         "post_category_label" to Pair("Category", "التصنيف"),
         "publish_btn" to Pair("Publish Anonymously", "نشر مجهول"),
+        "community_public_note" to Pair(
+            "This post is public: every BreakFree user can read it. Only the alias above is attached to it.",
+            "هذا المنشور عام: كل مستخدمي تعافي يمكنهم قراءته. الاسم المستعار أعلاه هو الهوية الوحيدة المرفقة."
+        ),
+        "community_signin_required" to Pair(
+            "Sign in to take part — the community feed is public.",
+            "سجّل الدخول للمشاركة — مجتمع تعافي عام."
+        ),
+        "community_offline" to Pair(
+            "You need an internet connection to publish or react.",
+            "تحتاج إلى اتصال بالإنترنت للنشر أو التفاعل."
+        ),
+        "community_post_failed" to Pair(
+            "Could not publish. Check your connection and try again.",
+            "تعذّر النشر. تحقّق من الاتصال وحاول مجدداً."
+        ),
+        "community_post_published" to Pair("Published to the community.", "تم النشر في المجتمع."),
+        "community_load_failed" to Pair(
+            "Couldn't load the public feed. Check your connection and try again.",
+            "تعذّر تحميل المجتمع. تحقّق من الاتصال وحاول مجدداً."
+        ),
+        "community_error_timeout" to Pair(
+            "(the server did not respond in time)",
+            "(لم يستجب الخادم في الوقت المناسب)"
+        ),
+        "community_error_permission" to Pair(
+            "(this account is not allowed to post — sign out and back in)",
+            "(هذا الحساب غير مسموح له بالنشر — سجّل الخروج ثم الدخول من جديد)"
+        ),
+        "community_error_network" to Pair(
+            "(could not reach the server)",
+            "(تعذّر الوصول إلى الخادم)"
+        ),
+        "community_signin_title" to Pair("Join the shared feed", "انضم إلى المجتمع المشترك"),
+        "community_signin_desc" to Pair(
+            "Posts are public and shared by every user. Sign in with Google to read and post — nothing else about your recovery is shared.",
+            "المنشورات عامة ويشاهدها كل المستخدمين. سجّل الدخول بحساب Google للقراءة والنشر — لا يُشارك أي شيء آخر عن رحلتك."
+        ),
         "community_empty_title" to Pair("No stories yet", "لا توجد قصص بعد"),
         "community_empty_desc" to Pair(
             "This space is yours. Be the first to share a win, an urge you surfed, or a milestone — anonymously.",
@@ -659,8 +708,8 @@ object Translations {
         "settings_about_desc" to Pair("Version, privacy and support", "الإصدار والخصوصية والدعم"),
         "settings_privacy" to Pair("Privacy", "الخصوصية"),
         "settings_privacy_desc" to Pair(
-            "Mood logs and streak history stay on this device. Chat text is only sent to Gemini after you agree, and the Shield never uploads the pages it reads.",
-            "سجلات المشاعر وتاريخ التعافي تبقى على هذا الجهاز. لا تُرسل رسائل المحادثة إلى Gemini إلا بعد موافقتك، والدرع لا يرفع الصفحات التي يقرأها أبداً."
+            "Mood logs and streak history stay on this device. Chat text is only sent to the AI provider you configure, after you agree, and the Shield never uploads the pages it reads.",
+            "سجلات المشاعر وتاريخ التعافي تبقى على هذا الجهاز. لا تُرسل رسائل المحادثة إلا إلى مزوّد الذكاء الاصطناعي الذي تحدده، وبعد موافقتك، والدرع لا يرفع الصفحات التي يقرأها أبداً."
         ),
         "settings_crisis" to Pair("Need urgent help?", "تحتاج مساعدة عاجلة؟"),
         "settings_crisis_desc" to Pair(

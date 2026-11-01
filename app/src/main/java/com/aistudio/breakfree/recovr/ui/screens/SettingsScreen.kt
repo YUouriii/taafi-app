@@ -57,7 +57,6 @@ import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.monitoring.MonitoringManager
 import com.aistudio.breakfree.recovr.monitoring.OverlayPermission
 import com.aistudio.breakfree.recovr.monitoring.UninstallLock
-import com.aistudio.breakfree.recovr.stealth.DisguisePreset
 import com.aistudio.breakfree.recovr.ui.components.AuthCard
 import com.aistudio.breakfree.recovr.ui.components.CostumeEmoji
 import com.aistudio.breakfree.recovr.ui.components.CostumeIconType
@@ -390,26 +389,6 @@ fun SettingsScreen(
                     if (stealthEnabled) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = Translations.t("stealth_disguised_as", language)
-                                .replace("{preset}", stealthPrefs.disguisePreset.label),
-                            color = TextMuted,
-                            fontSize = 11.5.sp
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = Translations.t(
-                                when (stealthPrefs.disguisePreset) {
-                                    DisguisePreset.CALCULATOR -> "stealth_unlock_calc_hint"
-                                    DisguisePreset.NOTES -> "stealth_unlock_notes_hint"
-                                    DisguisePreset.WEATHER -> "stealth_unlock_weather_hint"
-                                },
-                                language
-                            ),
-                            color = TextMuted.copy(alpha = 0.85f),
-                            fontSize = 11.sp
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
                             text = Translations.t("stealth_auto_lock", language),
                             color = TextSecondary,
                             fontSize = 12.sp,
@@ -492,9 +471,9 @@ fun SettingsScreen(
                 item {
                     StealthSetupDialog(
                         language = language,
-                        onConfirm = { preset, pin ->
+                        onConfirm = { pin ->
                             val ok = com.aistudio.breakfree.recovr.stealth.StealthManager.enable(
-                                context, preset, pin, discreetNotifications = true
+                                context, pin, discreetNotifications = true
                             )
                             if (ok) {
                                 stealthEnabled = true

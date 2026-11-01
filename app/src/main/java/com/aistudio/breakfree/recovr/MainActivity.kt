@@ -96,7 +96,6 @@ import com.aistudio.breakfree.recovr.ui.components.CostumeIconType
 import com.aistudio.breakfree.recovr.ui.components.FirstRunShieldSetupDialog
 import com.aistudio.breakfree.recovr.stealth.StealthManager
 import com.aistudio.breakfree.recovr.ui.components.StealthLockScreen
-import com.aistudio.breakfree.recovr.ui.components.StealthEntryScreen
 import com.aistudio.breakfree.recovr.ui.components.SosBreathingModal
 import com.aistudio.breakfree.recovr.update.AutoUpdater
 import com.aistudio.breakfree.recovr.ui.screens.AiCompanionScreen
@@ -188,8 +187,8 @@ class MainActivity : FragmentActivity() {
         }
         syncDnsShield()
 
-        // Stealth Mode: keep the disguise in sync and protect the window.
-        StealthManager.syncDisguise(this)
+        // Stealth Mode: keep the launcher identity in sync and protect the window.
+        StealthManager.syncStealthIdentity(this)
         if (StealthManager.isStealthActive(this)) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         } else {
@@ -496,31 +495,16 @@ fun BreakFreeApp(
             }
         }
 
-        // Stealth Mode lock gate: drawn last so nothing leaks above the decoy. It shows a
-        // decoy by default; the PIN pad opens from the disguise's own unlock gesture.
+        // Stealth Mode lock gate: drawn last so nothing leaks above it. With the disguise
+        // removed, stealth is just a PIN gate on app open.
         if (stealthLocked && StealthManager.lockRequired(context)) {
-            var showPin by remember { mutableStateOf(false) }
-            if (showPin) {
-                StealthLockScreen(
-                    language = language,
-                    onUnlock = {
-                        // StealthLockScreen has already verified the PIN (and set duress
-                        // mode when it was the duress PIN). Unlocking again here would
-                        // reset duress mode and expose the real dashboard.
-                        showPin = false
-                    }
-                )
-            } else {
-                StealthEntryScreen(
-                    language = language,
-                    preset = StealthManager.prefs(context).disguisePreset,
-                    onUnlockRequested = { showPin = true },
-                    onUnlocked = {
-                        StealthManager.unlock(context)
-                        showPin = false
-                    }
-                )
-            }
+            StealthLockScreen(
+                language = language,
+                onUnlock = {
+                    // StealthLockScreen has already verified the PIN (and set duress
+                    // mode when it was the duress PIN).
+                }
+            )
         }
     }
 }

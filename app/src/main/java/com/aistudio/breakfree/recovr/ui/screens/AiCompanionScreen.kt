@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,6 +28,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,7 +43,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import android.util.Log
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +57,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aistudio.breakfree.recovr.ai.AiModelFetcher
+import com.aistudio.breakfree.recovr.ai.AiProviderConfig
+import com.aistudio.breakfree.recovr.ai.AiProviderKind
 import com.aistudio.breakfree.recovr.localization.Translations
 import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.model.ChatMessage
@@ -64,6 +75,7 @@ import com.aistudio.breakfree.recovr.ui.theme.AuroraTeal
 import com.aistudio.breakfree.recovr.ui.theme.BlackCard
 import com.aistudio.breakfree.recovr.ui.theme.BlackElevated
 import com.aistudio.breakfree.recovr.ui.theme.GreenCalm
+import com.aistudio.breakfree.recovr.ui.theme.GreenCalmContainer
 import com.aistudio.breakfree.recovr.ui.theme.GreenCalmLight
 import com.aistudio.breakfree.recovr.ui.theme.OnGreenCalm
 import com.aistudio.breakfree.recovr.ui.theme.SoftGold
@@ -90,7 +102,7 @@ fun AiCompanionScreen(
     modifier: Modifier = Modifier
 ) {
     val language by viewModel.language.collectAsState()
-    val geminiApiKey by viewModel.geminiApiKey.collectAsState()
+    val aiConfig by viewModel.aiConfig.collectAsState()
     val chatMessages by viewModel.chatMessages.collectAsState()
     val isAiLoading by viewModel.isAiLoading.collectAsState()
     val showAiConsentDialog by viewModel.showAiConsentDialog.collectAsState()
@@ -114,15 +126,15 @@ fun AiCompanionScreen(
     }
 
     if (showApiKeyDialog) {
-        GeminiApiKeyDialog(
+        AiProviderDialog(
             language = language,
-            currentKey = geminiApiKey.orEmpty(),
-            onSave = { key ->
-                viewModel.setGeminiApiKey(key)
+            current = aiConfig,
+            onSave = { config ->
+                viewModel.setAiConfig(config)
                 showApiKeyDialog = false
             },
             onClear = {
-                viewModel.setGeminiApiKey(null)
+                viewModel.clearAiApiKey()
                 showApiKeyDialog = false
             },
             onDismiss = { showApiKeyDialog = false }
@@ -175,16 +187,16 @@ fun AiCompanionScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            if (geminiApiKey?.isNotBlank() == true) {
+            if (aiConfig.isConfigured) {
                 Pill(
-                    text = Translations.t("ai_api_key_active", language),
+                    text = aiConfig.label(language),
                     color = GreenCalmLight,
                     icon = CostumeIconType.CHECK
                 )
             } else {
                 Pill(
-                    text = Translations.t("ai_api_key_active", language),
-                    color = GreenCalmLight,
+                    text = Translations.t("ai_offline_mode", language),
+                    color = TextSecondary,
                     icon = CostumeIconType.BRAIN
                 )
             }
@@ -198,13 +210,13 @@ fun AiCompanionScreen(
                 Icon(
                     imageVector = CostumeIconType.SETTINGS.toVector(),
                     contentDescription = null,
-                    tint = if (geminiApiKey?.isNotBlank() == true) GreenCalmLight else TextSecondary,
+                    tint = if (aiConfig.isConfigured) GreenCalmLight else TextSecondary,
                     modifier = Modifier.size(13.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = Translations.t("ai_api_key_btn", language),
-                    color = if (geminiApiKey?.isNotBlank() == true) GreenCalmLight else TextSecondary,
+                    color = if (aiConfig.isConfigured) GreenCalmLight else TextSecondary,
                     fontSize = 11.sp
                 )
             }
@@ -447,15 +459,68 @@ private fun ChatBubble(message: ChatMessage, language: AppLanguage) {
 }
 
 @Composable
-private fun GeminiApiKeyDialog(
+@OptIn(ExperimentalMaterial3Api::class)
+private fun AiProviderDialog(
     language: AppLanguage,
-    currentKey: String,
-    onSave: (String) -> Unit,
+    current: AiProviderConfig,
+    onSave: (AiProviderConfig) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    var keyInput by remember { mutableStateOf(currentKey) }
+    val scope = rememberCoroutineScope()
+    var kind by remember { mutableStateOf(current.kind) }
+    var modelInput by remember { mutableStateOf(current.model) }
+    var baseUrlInput by remember { mutableStateOf(current.baseUrl) }
+    var keyInput by remember { mutableStateOf(current.apiKey) }
+
+    var availableModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isLoadingModels by remember { mutableStateOf(false) }
+    var modelsError by remember { mutableStateOf<String?>(null) }
+    var modelsExpanded by remember { mutableStateOf(false) }
+
+    var isTesting by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+
+    fun loadModels() {
+        val config = AiProviderConfig(
+            kind = kind,
+            baseUrl = baseUrlInput,
+            model = modelInput,
+            apiKey = keyInput
+        )
+        if (keyInput.isBlank() && kind != AiProviderKind.GEMINI) {
+            modelsError = Translations.t("ai_key_required", language)
+            return
+        }
+        isLoadingModels = true
+        modelsError = null
+        scope.launch {
+            try {
+                val models = AiModelFetcher.fetchModels(config)
+                availableModels = models
+                if (models.isNotEmpty() && modelInput.isBlank()) {
+                    modelInput = models.first()
+                }
+                if (models.isEmpty()) {
+                    modelsError = Translations.t("ai_models_none", language)
+                }
+            } catch (e: Exception) {
+                Log.w("AiProviderDialog", "Model fetch failed: ${e.message}")
+                availableModels = emptyList()
+                modelsError = Translations.t("ai_models_failed", language)
+            } finally {
+                isLoadingModels = false
+            }
+        }
+    }
+
+    // Auto-load when the provider changes (including the first composition).
+    LaunchedEffect(kind) {
+        if (keyInput.isNotBlank() || kind == AiProviderKind.GEMINI) {
+            loadModels()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -469,50 +534,267 @@ private fun GeminiApiKeyDialog(
         },
         title = {
             Text(
-                text = Translations.t("ai_api_key_dialog_title", language),
+                text = Translations.t("ai_provider_dialog_title", language),
                 fontWeight = FontWeight.Bold
             )
         },
         text = {
-            Column {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 430.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Text(
-                    text = Translations.t("ai_api_key_dialog_desc", language),
+                    text = Translations.t("ai_provider_dialog_desc", language),
                     color = TextSecondary,
-                    fontSize = 12.5.sp,
-                    lineHeight = 18.sp
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = Translations.t("ai_provider_label", language),
+                    color = TextSecondary,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AiProviderKind.entries.forEach { option ->
+                        val selected = option == kind
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (selected) GreenCalmContainer else BlackCard)
+                                .border(
+                                    1.dp,
+                                    if (selected) GreenCalm.copy(alpha = 0.45f) else WhiteSubtleBorder,
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable { kind = option }
+                                .padding(horizontal = 12.dp, vertical = 9.dp)
+                                .testTag("ai_provider_${option.key}"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = option.title(language),
+                                color = if (selected) GreenCalmLight else TextSecondary,
+                                fontSize = 12.5.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(10.dp))
 
-                TextButton(
-                    onClick = {
-                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
-                        browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(browserIntent)
-                    },
-                    modifier = Modifier.align(Alignment.Start)
-                ) {
-                    Text(
-                        text = Translations.t("ai_api_key_get_free", language),
-                        color = GreenCalmLight,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                if (availableModels.isNotEmpty()) {
+                    ExposedDropdownMenuBox(
+                        expanded = modelsExpanded,
+                        onExpandedChange = { modelsExpanded = it },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = modelInput,
+                            onValueChange = { modelInput = it },
+                            label = { Text(Translations.t("ai_model_label", language)) },
+                            placeholder = { Text(kind.defaultModel, color = TextMuted) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelsExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = modelsExpanded,
+                            onDismissRequest = { modelsExpanded = false }
+                        ) {
+                            availableModels.forEach { model ->
+                                Text(
+                                    text = model,
+                                    fontSize = 12.sp,
+                                    color = TextPrimary,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            modelInput = model
+                                            modelsExpanded = false
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = modelInput,
+                        onValueChange = { modelInput = it },
+                        label = { Text(Translations.t("ai_model_label", language)) },
+                        placeholder = { Text(kind.defaultModel, color = TextMuted) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    if (isLoadingModels) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                color = GreenCalmLight,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = Translations.t("ai_loading_models", language),
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    } else {
+                        TextButton(onClick = { loadModels() }) {
+                            Text(
+                                text = Translations.t("ai_load_models", language),
+                                color = GreenCalmLight,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    if (modelsError != null) {
+                        Text(
+                            text = modelsError!!,
+                            color = SoftGold,
+                            fontSize = 10.5.sp,
+                            lineHeight = 13.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = baseUrlInput,
+                    onValueChange = { baseUrlInput = it },
+                    label = { Text(Translations.t("ai_base_url_label", language)) },
+                    placeholder = { Text(kind.defaultBaseUrl, color = TextMuted) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = keyInput,
                     onValueChange = { keyInput = it },
-                    placeholder = { Text("AIzaSy...", color = TextMuted) },
+                    label = { Text(Translations.t("ai_api_key_label", language)) },
+                    placeholder = { Text("sk-...", color = TextMuted) },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("ai_api_key_field")
                 )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(kind.keyPageUrl))
+                            browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(browserIntent)
+                        }
+                    ) {
+                        Text(
+                            text = Translations.t("ai_get_key", language),
+                            color = GreenCalmLight,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    TextButton(
+                        onClick = {
+                            val config = AiProviderConfig(
+                                kind = kind,
+                                baseUrl = baseUrlInput,
+                                model = modelInput,
+                                apiKey = keyInput
+                            )
+                            isTesting = true
+                            testResult = null
+                            scope.launch {
+                                try {
+                                    val msg = AiModelFetcher.testConnection(config)
+                                    testResult = "✅ $msg"
+                                } catch (e: Exception) {
+                                    Log.w("AiProviderDialog", "Connection test failed: ${e.message}")
+                                    testResult = "❌ ${e.message ?: "Connection failed"}"
+                                } finally {
+                                    isTesting = false
+                                }
+                            }
+                        },
+                        enabled = !isTesting
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(
+                                color = GreenCalmLight,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        } else {
+                            Text(
+                                text = Translations.t("ai_test_connection", language),
+                                color = GreenCalmLight,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                if (testResult != null) {
+                    Text(
+                        text = testResult!!,
+                        color = if (testResult!!.startsWith("✅")) GreenCalmLight else SoftGold,
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp
+                    )
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(keyInput) }) {
+            TextButton(
+                onClick = {
+                    onSave(
+                        AiProviderConfig(
+                            kind = kind,
+                            baseUrl = baseUrlInput,
+                            model = modelInput,
+                            apiKey = keyInput
+                        )
+                    )
+                }
+            ) {
                 Text(
                     text = Translations.t("ai_api_key_save", language),
                     color = GreenCalmLight,
@@ -522,7 +804,7 @@ private fun GeminiApiKeyDialog(
         },
         dismissButton = {
             Row {
-                if (currentKey.isNotBlank()) {
+                if (current.apiKey.isNotBlank()) {
                     TextButton(onClick = onClear) {
                         Text(Translations.t("ai_api_key_clear", language), color = SoftGold)
                     }
@@ -564,12 +846,12 @@ private fun AiConsentDialog(
         text = {
             Text(
                 text = if (isAr) {
-                    "رسائلك في المحادثة تُرسل إلى Google (Gemini 1.5 Flash) لتوليد ردود التعافي والدعم المعرفي السلوكي. " +
+                    "رسائلك في المحادثة تُرسل إلى مزوّد الذكاء الاصطناعي الذي اخترته في الإعدادات (Gemini أو OpenAI أو غيرها) لتوليد ردود التعافي والدعم المعرفي السلوكي. " +
                         "لا تُرسل سجلات مشاعرك اليومية كاملة، ولا يُرسل أي شيء من متصفحك أو من بيانات المراقبة. " +
                         "لا تكتب اسمك الكامل أو معلومات تعريفية. " +
                         "هذا مرشد دعم وليس بديلاً عن طبيب أو خط طوارئ، وإن كنت في خطر فاتصل بالطوارئ فوراً."
                 } else {
-                    "Your chat messages are sent to Google (Gemini 1.5 Flash) to generate personalized CBT recovery coaching. " +
+                    "Your chat messages are sent to the AI provider you configured in Settings (Gemini, OpenAI, or any other endpoint) to generate personalized CBT recovery coaching. " +
                         "Your full daily mood logs are not sent, and nothing from your browser or the content monitor is ever sent. " +
                         "Please don't include your full name or identifying details. " +
                         "This is a support companion, not a clinician or a crisis line — if you are in danger, contact emergency services."
