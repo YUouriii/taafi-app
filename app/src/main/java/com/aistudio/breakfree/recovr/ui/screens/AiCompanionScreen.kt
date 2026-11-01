@@ -54,7 +54,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.breakfree.recovr.ai.AiModelFetcher
@@ -179,11 +183,11 @@ fun AiCompanionScreen(
             onSosClick = { viewModel.openSosModal() }
         )
 
-        // Model status & API key configuration row
+        // Model status & API key configuration row (compact, single line)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = ScreenGutter, vertical = 4.dp),
+                .padding(horizontal = ScreenGutter, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -204,46 +208,83 @@ fun AiCompanionScreen(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .clickable { showApiKeyDialog = true }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = CostumeIconType.SETTINGS.toVector(),
                     contentDescription = null,
                     tint = if (aiConfig.isConfigured) GreenCalmLight else TextSecondary,
-                    modifier = Modifier.size(13.dp)
+                    modifier = Modifier.size(12.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
                     text = Translations.t("ai_api_key_btn", language),
                     color = if (aiConfig.isConfigured) GreenCalmLight else TextSecondary,
-                    fontSize = 11.sp
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    softWrap = false
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // Guided starting points
-        LazyRow(
+        // Guided starting points (collapsible tray to reclaim chat space)
+        var showSuggestions by remember { mutableStateOf(true) }
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            contentPadding = PaddingValues(horizontal = ScreenGutter),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = ScreenGutter, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            items(actionChips) { chip ->
-                QuickActionChip(
-                    chip = chip,
-                    onClick = {
-                        if (chip.isSosDirect) {
-                            viewModel.openSosModal()
-                        } else {
-                            viewModel.sendChatMessage(chip.title)
-                        }
-                    }
+            Text(
+                text = Translations.t("ai_suggestions", language),
+                color = TextMuted,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            TextButton(onClick = { showSuggestions = !showSuggestions }) {
+                Text(
+                    text = if (showSuggestions)
+                        Translations.t("ai_hide_suggestions", language)
+                    else
+                        Translations.t("ai_show_suggestions", language),
+                    color = GreenCalmLight,
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
+        }
+
+        if (showSuggestions) {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp),
+                contentPadding = PaddingValues(horizontal = ScreenGutter),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(actionChips) { chip ->
+                    QuickActionChip(
+                        chip = chip,
+                        onClick = {
+                            if (chip.isSosDirect) {
+                                viewModel.openSosModal()
+                            } else {
+                                viewModel.sendChatMessage(chip.title)
+                            }
+                        }
+                    )
+                }
+                item {
+                    Spacer(modifier = Modifier.width(ScreenGutter))
+                }
+            }
+        } else {
+            Spacer(modifier = Modifier.height(2.dp))
         }
 
         // Message list
@@ -442,7 +483,7 @@ private fun ChatBubble(message: ChatMessage, language: AppLanguage) {
                 Spacer(modifier = Modifier.height(6.dp))
             }
             Text(
-                text = message.text,
+                text = parseBoldMarkdown(message.text),
                 color = if (isUser) OnGreenCalm else TextPrimary,
                 fontSize = 13.sp,
                 lineHeight = 20.sp
@@ -455,6 +496,27 @@ private fun ChatBubble(message: ChatMessage, language: AppLanguage) {
                 fontSize = 10.sp
             )
         }
+    }
+}
+
+/**
+ * Renders `**bold**` markdown spans as bold text, which Compose's Text does not do
+ * automatically. Works for both LTR and RTL scripts.
+ */
+private fun parseBoldMarkdown(text: String): AnnotatedString = buildAnnotatedString {
+    val regex = Regex("""\*\*(.+?)\*\*""", setOf(RegexOption.DOT_MATCHES_ALL))
+    var lastIndex = 0
+    for (match in regex.findAll(text)) {
+        if (match.range.first > lastIndex) {
+            append(text.substring(lastIndex, match.range.first))
+        }
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+            append(match.groupValues[1])
+        }
+        lastIndex = match.range.last + 1
+    }
+    if (lastIndex < text.length) {
+        append(text.substring(lastIndex))
     }
 }
 

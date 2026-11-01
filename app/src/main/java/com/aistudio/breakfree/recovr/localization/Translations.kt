@@ -148,6 +148,9 @@ object Translations {
         "ai_models_none" to Pair("No models returned — enter one manually.", "لم تُرجع أي نماذج — أدخلها يدوياً."),
         "ai_models_failed" to Pair("Couldn't load models — enter one manually.", "تعذّر تحميل النماذج — أدخلها يدوياً."),
         "ai_offline_mode" to Pair("Offline guidance (no model connected)", "إرشاد دون اتصال (لا يوجد نموذج متصل)"),
+        "ai_suggestions" to Pair("Suggestions", "اقتراحات"),
+        "ai_show_suggestions" to Pair("Show", "إظهار"),
+        "ai_hide_suggestions" to Pair("Hide", "إخفاء"),
         "ai_provider_saved" to Pair("AI provider saved", "تم حفظ مزوّد الذكاء الاصطناعي"),
         "ai_key_required" to Pair("Enter an API key to use this model.", "أدخل مفتاح API لاستخدام هذا النموذج."),
 
