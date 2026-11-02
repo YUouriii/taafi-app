@@ -409,8 +409,8 @@ object Translations {
             "هذه الخطوات تفعّل الحماية. كل زر يفتح شاشة النظام المطلوبة."
         ),
         "setup_identity_hint" to Pair(
-            "In Android Settings this app appears as \"Utilities\" (package com.aistudio.breakfree.recovr). That is intentional and protects your privacy in Stealth Mode — look for \"Utilities\" in every system list.",
-            "في إعدادات أندرويد يظهر هذا التطبيق باسم «أدوات» (الحزمة com.aistudio.breakfree.recovr). هذا مقصود لحماية خصوصيتك في وضع التخفي — ابحث عن «أدوات» في كل قائمة نظام."
+            "In Android Settings this app appears as \"BreakFree\" (package com.aistudio.breakfree.recovr) — look for \"BreakFree\" in every system list.",
+            "في إعدادات أندرويد يظهر هذا التطبيق باسم «BreakFree» (الحزمة com.aistudio.breakfree.recovr) — ابحث عن «BreakFree» في كل قائمة نظام."
         ),
         "setup_step_restricted" to Pair(
             "Allow restricted settings (Android 13+)",

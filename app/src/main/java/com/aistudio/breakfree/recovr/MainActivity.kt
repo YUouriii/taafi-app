@@ -279,7 +279,7 @@ fun BreakFreeApp(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 // A duress unlock must not survive a trip to the background: lock again so
-                // the decoy comes back and the real owner can unlock normally.
+                // the empty duress dashboard comes back and requires a real unlock.
                 if (StealthManager.duressMode.value) {
                     StealthManager.lock()
                 } else if (StealthManager.shouldAutoLock(context)) {

@@ -33,7 +33,7 @@ object AccessibilityMonitor {
     }
 
     fun openAccessibilitySettings(context: Context) {
-        val hint = if (isArabic(context)) "ابحث عن «أدوات» في القائمة" else "Look for \"Utilities\" in the list"
+        val hint = if (isArabic(context)) "ابحث عن «BreakFree» في القائمة" else "Look for \"BreakFree\" in the list"
         try {
             android.widget.Toast.makeText(context, hint, android.widget.Toast.LENGTH_LONG).show()
             context.startActivity(
@@ -46,7 +46,7 @@ object AccessibilityMonitor {
     }
 
     fun openAppInfo(context: Context) {
-        val hint = if (isArabic(context)) "يظهر التطبيق باسم «أدوات»" else "The app appears as \"Utilities\""
+        val hint = if (isArabic(context)) "يظهر التطبيق باسم «BreakFree»" else "The app appears as \"BreakFree\""
         try {
             android.widget.Toast.makeText(context, hint, android.widget.Toast.LENGTH_LONG).show()
             context.startActivity(

@@ -74,12 +74,17 @@ class GuardForegroundService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             val language = currentLanguage(context)
-            val stealth = false
+            val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences
+                .isStealthEnabled(context) &&
+                com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(context)
             val vpnRunning = DnsFilterVpnService.isRunning()
             val builder = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_shield)
                 .setContentTitle(
-                    Translations.t("guard_service_title", language)
+                    Translations.t(
+                        if (stealth) "stealth_service_title" else "guard_service_title",
+                        language
+                    )
                 )
                 .setContentText(
                     if (vpnRunning) {
@@ -114,7 +119,9 @@ class GuardForegroundService : Service() {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
             val language = currentLanguage(context)
-            val stealth = false
+            val stealth = com.aistudio.breakfree.recovr.stealth.StealthPreferences
+                .isStealthEnabled(context) &&
+                com.aistudio.breakfree.recovr.stealth.StealthPreferences.discreetNotifications(context)
             val desiredName = Translations.t(
                 if (stealth) "stealth_notif_channel" else "guard_service_channel",
                 language
