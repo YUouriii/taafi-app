@@ -296,6 +296,18 @@ object Translations {
         "stealth_lock_title" to Pair("Unlock BreakFree", "افتح تعافي"),
         "stealth_lock_subtitle" to Pair("Enter your PIN to continue", "أدخل رمز PIN للمتابعة"),
         "stealth_lock_wrong" to Pair("Wrong PIN", "رمز PIN خاطئ"),
+        "tamper_gate_title" to Pair("Protection is locked", "الحماية مقفلة"),
+        "tamper_gate_body_pin" to Pair(
+            "Your 90-day commitment is active ({days} days left). Enter your Stealth PIN to turn this off.",
+            "قفل 90 يوماً مفعّل ({days} يوماً متبقية). أدخل رمز PIN للتعطيل."
+        ),
+        "tamper_gate_body_nopin" to Pair(
+            "Your 90-day commitment is active ({days} days left). This switch is what protects you from relapse.",
+            "قفل 90 يوماً مفعّل ({days} يوماً متبقية). هذا الخيار ما يحميك من الانتكاس."
+        ),
+        "tamper_gate_pin_label" to Pair("Stealth PIN", "رمز PIN"),
+        "tamper_gate_confirm_pin" to Pair("Unlock", "فتح"),
+        "tamper_gate_turn_off" to Pair("I accept — turn off", "أفهم ذلك — تعطيله"),
         "stealth_lock_biometric" to Pair("Use biometric", "استخدام البصمة"),
         "settings_stealth" to Pair("Stealth Mode", "وضع التخفي"),
         "settings_stealth_desc" to Pair(

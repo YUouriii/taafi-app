@@ -105,7 +105,7 @@ class GuardForegroundService : Service() {
                 .setOnlyAlertOnce(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(openApp)
-            if (vpnRunning) {
+            if (vpnRunning && !protectionLocked(context)) {
                 builder.addAction(
                     0,
                     Translations.t("dns_vpn_notification_stop", language),
@@ -114,6 +114,10 @@ class GuardForegroundService : Service() {
             }
             return builder.build()
         }
+
+        /** True while the 90-day commitment guards the protection surfaces. */
+        private fun protectionLocked(context: Context): Boolean =
+            UninstallLock.isActive(context) && UninstallLock.daysRemaining(context) > 0
 
         fun createChannel(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

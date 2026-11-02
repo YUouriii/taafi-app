@@ -58,6 +58,7 @@ import com.aistudio.breakfree.recovr.ui.components.GhostButton
 import com.aistudio.breakfree.recovr.ui.components.IconTile
 import com.aistudio.breakfree.recovr.ui.components.OverlayPermissionDialog
 import com.aistudio.breakfree.recovr.ui.components.Pill
+import com.aistudio.breakfree.recovr.ui.components.ProtectionTamperGateDialog
 import com.aistudio.breakfree.recovr.ui.components.PrimaryButton
 import com.aistudio.breakfree.recovr.ui.components.ScreenGutter
 import com.aistudio.breakfree.recovr.ui.components.ScreenHeader
@@ -130,6 +131,16 @@ fun MonitoringSettingsScreen(
     var showAppsConsentDialog by remember { mutableStateOf(false) }
     var showDnsConsentDialog by remember { mutableStateOf(false) }
 
+    // Tamper gate: while the 90-day commitment runs, weakening a protection surface
+    // (monitoring switches, DNS shield) requires the Stealth PIN — or an explicit
+    // acknowledgement when no PIN was set. This closes the "flip it off in one tap
+    // while junking" path.
+    val tamperLocked = UninstallLock.isActive(context) && UninstallLock.daysRemaining(context) > 0
+    var pendingTamperAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    fun gateTamper(action: () -> Unit) {
+        if (tamperLocked) pendingTamperAction = action else action()
+    }
+
     // Live state of the two system gates the content monitor depends on. Re-read on
     // resume, because both are flipped on a system screen.
     var accessibilityEnabled by remember { mutableStateOf(AccessibilityMonitor.isEnabled(context)) }
@@ -201,6 +212,19 @@ fun MonitoringSettingsScreen(
                 startDnsShield()
             },
             onDecline = { showDnsConsentDialog = false }
+        )
+    }
+
+    pendingTamperAction?.let { action ->
+        ProtectionTamperGateDialog(
+            context = context,
+            language = language,
+            daysRemaining = UninstallLock.daysRemaining(context),
+            onVerified = {
+                pendingTamperAction = null
+                action()
+            },
+            onDismiss = { pendingTamperAction = null }
         )
     }
 
@@ -409,7 +433,10 @@ fun MonitoringSettingsScreen(
                         trailing = {
                             GuardSwitch(
                                 checked = strictGuardMode,
-                                onCheckedChange = { viewModel.setStrictGuardEnabled(it) },
+                                onCheckedChange = { on ->
+                                    if (on) viewModel.setStrictGuardEnabled(true)
+                                    else gateTamper { viewModel.setStrictGuardEnabled(false) }
+                                },
                                 testTag = "toggle_strict_guard_mode"
                             )
                         }
@@ -423,7 +450,10 @@ fun MonitoringSettingsScreen(
                         trailing = {
                             GuardSwitch(
                                 checked = warningBufferEnabled,
-                                onCheckedChange = { viewModel.setWarningBufferEnabled(it) },
+                                onCheckedChange = { on ->
+                                    if (on) viewModel.setWarningBufferEnabled(true)
+                                    else gateTamper { viewModel.setWarningBufferEnabled(false) }
+                                },
                                 testTag = "toggle_warning_buffer"
                             )
                         }
@@ -437,7 +467,10 @@ fun MonitoringSettingsScreen(
                         trailing = {
                             GuardSwitch(
                                 checked = keywordFilterEnabled,
-                                onCheckedChange = { viewModel.setKeywordFilterEnabled(it) },
+                                onCheckedChange = { on ->
+                                    if (on) viewModel.setKeywordFilterEnabled(true)
+                                    else gateTamper { viewModel.setKeywordFilterEnabled(false) }
+                                },
                                 testTag = "toggle_explicit_filter"
                             )
                         }
@@ -519,7 +552,7 @@ fun MonitoringSettingsScreen(
                         ).show()
                     },
                     onCheck = { viewModel.refreshDnsShield() },
-                    onDisable = { viewModel.disableDnsShield() }
+                    onDisable = { gateTamper { viewModel.disableDnsShield() } }
                 )
             }
 

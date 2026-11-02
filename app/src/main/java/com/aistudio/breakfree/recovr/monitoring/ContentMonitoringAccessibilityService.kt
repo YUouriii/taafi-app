@@ -238,7 +238,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
     private var cachedAppIdentities: List<String>? = null
     private var cachedAppIdentitiesAtMillis = 0L
 
-    private enum class UninstallAttempt { NONE, APP_INFO_SCREEN, CONFIRMATION_DIALOG }
+    private enum class UninstallAttempt { NONE, APP_INFO_SCREEN, CONFIRMATION_DIALOG, ADMIN_LIST_SCREEN }
 
     /**
      * When the 90-day commitment is active, stop the user on the one screen that can
@@ -284,6 +284,10 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
             }
             UninstallAttempt.CONFIRMATION_DIALOG -> {
                 blockAndDismiss(closeSettings = true)
+                true
+            }
+            UninstallAttempt.ADMIN_LIST_SCREEN -> {
+                blockAndDismiss(closeSettings = false)
                 true
             }
         }
@@ -415,6 +419,26 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * The system screen that lists device administrators ("Device admin apps" on stock
+     * Android, the security center equivalent on MIUI). Visiting it while the 90-day
+     * commitment is running means the user is going for the "Deactivate" button, so the
+     * guard treats it like the App Info page: it is disarmed by pressing back, not by
+     * being thrown out of Settings.
+     */
+    private fun isAdminListText(content: String): Boolean {
+        if (content.isBlank()) return false
+        return content.contains("device admin") ||
+            content.contains("device administrator") ||
+            content.contains("device managers") ||
+            content.contains("إدارة الجهاز") ||
+            content.contains("مسؤول الجهاز") ||
+            content.contains("مسؤولي الجهاز") ||
+            content.contains("مشرفي الجهاز") ||
+            content.contains("مشرف هنا") ||
+            content.contains("settings device admin")
+    }
+
+    /**
      * Walks the visible Settings/installer window and reports whether the user is on the
      * screen that removes this app. Two things must both be present: something that names
      * this app, and a control that removes it. A stray "Accessibility" or "Device admin"
@@ -430,6 +454,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         var mentionsApp = false
         var hasUninstallControl = false
         var hasDeactivateDialog = false
+        var hasAdminList = false
 
         while (stack.isNotEmpty() && visited < GUARD_MAX_NODES) {
             val node = stack.removeLast()
@@ -449,6 +474,9 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
                 if (!hasDeactivateDialog && isDeactivateDialogText(combined)) {
                     hasDeactivateDialog = true
                 }
+                if (!hasAdminList && isAdminListText(combined)) {
+                    hasAdminList = true
+                }
             }
 
             val childCount = minOf(node.childCount, GUARD_MAX_CHILDREN)
@@ -459,6 +487,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
 
         return when {
             hasDeactivateDialog -> UninstallAttempt.CONFIRMATION_DIALOG
+            mentionsApp && hasAdminList -> UninstallAttempt.ADMIN_LIST_SCREEN
             mentionsApp && hasUninstallControl -> UninstallAttempt.APP_INFO_SCREEN
             else -> UninstallAttempt.NONE
         }
