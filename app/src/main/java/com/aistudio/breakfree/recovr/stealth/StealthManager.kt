@@ -12,20 +12,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Applies and removes the Stealth / Disguise Mode.
+ * Applies and removes Stealth Mode.
  *
- * ## Disguise mechanism
+ * ## Behavior (deliberately minimal)
  *
- * The launcher entry point is switched between the real [com.aistudio.breakfree.recovr.MainActivity]
- * and one of the neutral activity-aliases declared in the manifest, using
- * [android.content.pm.PackageManager.setComponentEnabledSetting]. The alias's `targetActivity`
- * is still MainActivity, so deep links and intents keep working.
+ *  - the dashboard is locked behind a PIN (with optional biometrics and duress PIN);
+ *  - the ongoing notifications switch to generic, neutral wording so they do not
+ *    advertise recovery activity.
+ *
+ * It does NOT rename or re-icon the app: the launcher always shows the real
+ * BreakFree identity.
  */
 object StealthManager {
 
     private const val TAG = "StealthManager"
-
-    private const val SECURITY_GUARD_ALIAS = "com.aistudio.breakfree.recovr.alias.SecurityGuardAlias"
 
     // Observable lock state. true = locked (dashboard hidden).
     private val _isLocked = MutableStateFlow(false)
@@ -69,9 +69,9 @@ object StealthManager {
                     .apply()
             }
 
-            // The disguise and the PIN stay in place on purpose: a duress wipe must not
-            // reveal the real app on the launcher or drop the user out of the decoy while
-            // someone is watching. Only the recovery history is destroyed.
+            // The PIN gate and the generic notifications stay in place on purpose: a duress
+            // wipe must not reveal that anything happened while someone is watching. Only
+            // the recovery history is destroyed.
         } catch (e: Exception) {
             android.util.Log.w(TAG, "Wipe failed", e)
         }
@@ -109,16 +109,13 @@ object StealthManager {
 
     fun isStealthActive(context: Context): Boolean = prefs(context).stealthEnabled
 
-    /** Re-applies the correct launcher identity on boot / app start if it drifted. */
+    /**
+     * Restores the correct launcher state on app start. Older installs (v1.2) could
+     * disable MainActivity while a disguise alias was active; those aliases no longer
+     * exist, so we simply make sure the real entry is enabled again.
+     */
     fun syncStealthIdentity(context: Context) {
-        val p = prefs(context)
-        if (p.stealthEnabled) {
-            setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
-            setEnabled(context, SECURITY_GUARD_ALIAS, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-        } else {
-            setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-            setEnabled(context, SECURITY_GUARD_ALIAS, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
-        }
+        setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
     }
 
     /** True when the real dashboard must be unlocked before showing. */
@@ -146,9 +143,7 @@ object StealthManager {
         p.stealthEnabled = true
         p.appLockEnabled = true
 
-        // Swap the launcher identity: hide the real "BreakFree" entry, show "Security Guard".
-        setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
-        setEnabled(context, SECURITY_GUARD_ALIAS, PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+        // Keep the notification wording in sync with the new stealth state.
         refreshNotificationAppearance(context)
         return true
     }
@@ -161,9 +156,7 @@ object StealthManager {
         p.clearPin()
         p.discreetNotifications = false
 
-        // Restore the real "BreakFree" launcher identity.
-        setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-        setEnabled(context, SECURITY_GUARD_ALIAS, PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
+        // Restore the normal notification wording.
         refreshNotificationAppearance(context)
     }
 

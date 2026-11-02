@@ -299,31 +299,19 @@ object Translations {
         "stealth_lock_biometric" to Pair("Use biometric", "استخدام البصمة"),
         "settings_stealth" to Pair("Stealth Mode", "وضع التخفي"),
         "settings_stealth_desc" to Pair(
-            "Disguise the app icon and name, and lock the dashboard.",
-            "تنكر أيقونة التطبيق واسمه، وقفل لوحة التحكم."
+            "Lock the dashboard behind a PIN and keep notifications generic.",
+            "قفل لوحة التحكم برمز PIN وإبقاء الإشعارات عامة."
         ),
         "stealth_enable" to Pair("Enable Stealth Mode", "تفعيل وضع التخفي"),
         "stealth_disable" to Pair("Disable Stealth Mode", "إيقاف وضع التخفي"),
-        "stealth_preset" to Pair("Disguise as", "تنكر كـ"),
         "stealth_set_pin" to Pair("Set a 4-6 digit PIN", "تعيين رمز PIN من 4-6 أرقام"),
+        "stealth_setup_body" to Pair(
+            "Opening BreakFree will ask for this PIN.",
+            "سيطلب التطبيق هذا الرمز عند فتحه."
+        ),
         "stealth_pin_required" to Pair(
             "A PIN is required to protect the dashboard.",
             "رمز PIN مطلوب لحماية لوحة التحكم."
-        ),
-        // How to get back into the real app, per disguise. Shown at setup time and in
-        // Settings, because a decoy that explains itself would give the disguise away.
-        "stealth_unlock_title" to Pair("How to open it later", "طريقة فتحه لاحقاً"),
-        "stealth_unlock_calc_hint" to Pair(
-            "Type your PIN, then press = — or long-press the calculator display.",
-            "اكتب رمز PIN ثم اضغط = — أو اضغط مطولاً على شاشة الآلة الحاسبة."
-        ),
-        "stealth_unlock_notes_hint" to Pair(
-            "Long-press any note to open the PIN pad.",
-            "اضغط مطولاً على أي ملاحظة لإظهار لوحة الرمز."
-        ),
-        "stealth_unlock_weather_hint" to Pair(
-            "Long-press the temperature to open the PIN pad.",
-            "اضغط مطولاً على درجة الحرارة لإظهار لوحة الرمز."
         ),
         // Neutral wording used while Stealth Mode is on.
         "stealth_notif_channel" to Pair("Notifications", "إشعارات"),
@@ -351,7 +339,6 @@ object Translations {
             "يعمل في الخلفية."
         ),
         "stealth_vpn_session" to Pair("Private DNS", "DNS خاص"),
-        "stealth_disguised_as" to Pair("Disguised as: {preset}", "التنكر: {preset}"),
         "stealth_auto_lock" to Pair("Auto-lock after", "القفل التلقائي بعد"),
         "stealth_auto_lock_off" to Pair("Off", "معطّل"),
         "stealth_auto_lock_1m" to Pair("1 min", "دقيقة"),

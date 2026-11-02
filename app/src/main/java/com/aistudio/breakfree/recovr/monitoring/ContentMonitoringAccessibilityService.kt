@@ -305,8 +305,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
 
     /**
      * Strings that identify this app on a system screen: the package name, the label the
-     * system currently shows (the neutral "Utilities" identity, or a disguise alias while
-     * Stealth Mode is on) and the branded name. Cached for the life of the service.
+     * system currently shows and the branded name. Cached for the life of the service.
      */
     private fun appIdentities(): List<String> {
         val now = SystemClock.elapsedRealtime()

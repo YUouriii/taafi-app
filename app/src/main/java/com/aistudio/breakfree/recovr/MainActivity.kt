@@ -495,8 +495,8 @@ fun BreakFreeApp(
             }
         }
 
-        // Stealth Mode lock gate: drawn last so nothing leaks above it. With the disguise
-        // removed, stealth is just a PIN gate on app open.
+        // Stealth Mode lock gate: drawn last so nothing leaks above it. Stealth is just a
+        // PIN gate on app open.
         if (stealthLocked && StealthManager.lockRequired(context)) {
             StealthLockScreen(
                 language = language,

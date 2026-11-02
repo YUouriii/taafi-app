@@ -33,8 +33,8 @@ import com.aistudio.breakfree.recovr.ui.theme.TextPrimary
 import com.aistudio.breakfree.recovr.ui.theme.TextSecondary
 
 /**
- * Dialog for enabling Stealth Mode: pick a disguise and set a 4-6 digit PIN.
- * The PIN is mandatory — it protects the real dashboard once the app is disguised.
+ * Dialog for enabling Stealth Mode: sets a 4-6 digit PIN that locks the dashboard.
+ * The PIN is mandatory — it protects the real dashboard while Stealth Mode is on.
  */
 @Composable
 fun StealthSetupDialog(
@@ -81,12 +81,10 @@ fun StealthSetupDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = Translations.t("stealth_unlock_title", language),
+                    text = Translations.t("stealth_setup_body", language),
                     color = TextPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                    fontSize = 12.sp
                 )
-                Spacer(modifier = Modifier.height(2.dp))
 
                 error?.let {
                     Spacer(modifier = Modifier.height(8.dp))
