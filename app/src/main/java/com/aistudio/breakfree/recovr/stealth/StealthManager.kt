@@ -110,12 +110,13 @@ object StealthManager {
     fun isStealthActive(context: Context): Boolean = prefs(context).stealthEnabled
 
     /**
-     * Restores the correct launcher state on app start. Older installs (v1.2) could
-     * disable MainActivity while a disguise alias was active; those aliases no longer
-     * exist, so we simply make sure the real entry is enabled again.
+     * Restores the correct launcher state on app start: the real entry stays enabled and
+     * the legacy v1.2 disguise alias is disabled again (it survives updates when old
+     * Stealth Mode enabled it, so it exists only as an upgrade fallback).
      */
     fun syncStealthIdentity(context: Context) {
         setEnabled(context, "com.aistudio.breakfree.recovr.MainActivity", PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+        setEnabled(context, "com.aistudio.breakfree.recovr.alias.SecurityGuardAlias", PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
     }
 
     /** True when the real dashboard must be unlocked before showing. */

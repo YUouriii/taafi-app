@@ -21,6 +21,9 @@ class BootReceiver : BroadcastReceiver() {
             intent.action != "android.intent.action.QUICKBOOT_POWERON"
         ) return
         Log.i("BootReceiver", "Boot completed; starting protection services")
+        // Upgrade safety net: an install of v1.2 with Stealth Mode on could leave
+        // MainActivity disabled; make sure a launcher entry exists after a reboot too.
+        com.aistudio.breakfree.recovr.stealth.StealthManager.syncStealthIdentity(context)
         GuardForegroundService.start(context)
         // The accessibility service is re-enabled by the system if it was on; nothing to
         // do here. The DNS filter is restarted by MainActivity.syncDnsShield() on the
