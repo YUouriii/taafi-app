@@ -72,7 +72,11 @@ fun StreakProgressRing(
     )
 
     val phase = streakState.recoveryPhase
-    val phaseTitle = if (language == AppLanguage.ARABIC) phase.titleAr else phase.titleEn
+    val phaseTitle = when (language) {
+        AppLanguage.ARABIC -> phase.titleAr
+        AppLanguage.FRENCH -> phase.titleFr
+        else -> phase.titleEn
+    }
 
     Column(
         modifier = modifier

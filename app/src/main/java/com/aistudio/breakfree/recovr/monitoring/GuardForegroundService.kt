@@ -105,8 +105,7 @@ class GuardForegroundService : Service() {
                 .setOnlyAlertOnce(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(openApp)
-            if (vpnRunning && !protectionLocked(context)) {
-                builder.addAction(
+            if (vpnRunning && !protectionLocked(context)) {                builder.addAction(
                     0,
                     Translations.t("dns_vpn_notification_stop", language),
                     DnsFilterVpnService.stopIntent(context)
@@ -117,7 +116,7 @@ class GuardForegroundService : Service() {
 
         /** True while the 90-day commitment guards the protection surfaces. */
         private fun protectionLocked(context: Context): Boolean =
-            UninstallLock.isActive(context) && UninstallLock.daysRemaining(context) > 0
+            UninstallLock.tamperLocked(context)
 
         fun createChannel(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -155,7 +154,7 @@ class GuardForegroundService : Service() {
         fun currentLanguage(context: Context): AppLanguage {
             val code = context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
                 .getString("selected_language", "en")
-            return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
+            return when (code) { "ar" -> AppLanguage.ARABIC; "fr" -> AppLanguage.FRENCH; else -> AppLanguage.ENGLISH }
         }
     }
 

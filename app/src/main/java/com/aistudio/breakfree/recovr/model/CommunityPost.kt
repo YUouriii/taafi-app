@@ -18,11 +18,12 @@ data class CommunityPost(
 enum class CommunityCategory(
     val titleEn: String,
     val titleAr: String,
+    val titleFr: String,
     val costumeType: CostumeIconType
 ) {
-    ALL("All", "الكل", CostumeIconType.COMMUNITY),
-    MILESTONES("Milestones", "إنجازات", CostumeIconType.TROPHY),
-    URGE_SURFING("Urge Surfing", "مواجهة الرغبات", CostumeIconType.WAVE),
-    DAILY_MOTIVATION("Daily Fuel", "تحفيز يومي", CostumeIconType.FLAME),
-    GRACE_VICTORIES("Grace Victories", "انتصارات الوعي", CostumeIconType.TIMER)
+    ALL("All", "الكل", "Tout", CostumeIconType.COMMUNITY),
+    MILESTONES("Milestones", "إنجازات", "Étapes", CostumeIconType.TROPHY),
+    URGE_SURFING("Urge Surfing", "مواجهة الرغبات", "Surf d'envie", CostumeIconType.WAVE),
+    DAILY_MOTIVATION("Daily Fuel", "تحفيز يومي", "Carburant quotidien", CostumeIconType.FLAME),
+    GRACE_VICTORIES("Grace Victories", "انتصارات الوعي", "Victoires de grâce", CostumeIconType.TIMER)
 }

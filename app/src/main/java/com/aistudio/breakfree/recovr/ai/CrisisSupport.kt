@@ -22,14 +22,22 @@ object CrisisSupport {
         "أريد أن أموت", "اريد ان اموت", "إيذاء نفسي", "اذي نفسي", "أجرح نفسي"
     )
 
+    private val frenchMarkers = listOf(
+        "suicide", "suicidaire", "me tuer", "mettre fin à ma vie", "mettre fin a ma vie",
+        "envie de mourir", "mieux mort", "auto-mutilation", "automutilation",
+        "me faire du mal", "me couper", "surdose"
+    )
+
     fun isCrisisMessage(text: String): Boolean {
         val lower = text.lowercase()
-        return englishMarkers.any { lower.contains(it) } || arabicMarkers.any { lower.contains(it) }
+        return englishMarkers.any { lower.contains(it) } ||
+            arabicMarkers.any { lower.contains(it) } ||
+            frenchMarkers.any { lower.contains(it) }
     }
 
     /** The only reply the app gives to a crisis message. */
-    fun response(language: AppLanguage): String = if (language == AppLanguage.ARABIC) {
-        """
+    fun response(language: AppLanguage): String = when (language) {
+        AppLanguage.ARABIC -> """
 **ما تشعر به الآن ثقيل جداً، وأنت تستحق دعماً بشرياً حقيقياً في هذه اللحظة.**
 
 أنا تطبيق، ولست جهة طوارئ. لا أستطيع أن أبقيك آمناً بنفسي.
@@ -47,8 +55,25 @@ object CrisisSupport {
 
 لست وحدك، وهذه اللحظة ستمر. تواصل مع إنسان الآن.
         """.trimIndent()
-    } else {
-        """
+        AppLanguage.FRENCH -> """
+**Ce que vous portez en ce moment est lourd, et vous méritez un vrai soutien humain.**
+
+Je suis une application, pas un service d'urgence. Je ne peux pas vous garder en sécurité seul.
+
+**Veuillez faire ceci maintenant :**
+1. Appelez le numéro d'urgence local (112, 911, 999) ou rendez-vous au service d'urgence le plus proche.
+2. Appelez ou envoyez un message à une personne de confiance et dites une phrase : « J'ai besoin de toi maintenant. »
+3. Éloignez-vous de tout ce avec quoi vous pourriez vous faire du mal, et restez là où il y a d'autres personnes.
+
+**Lignes d'écoute gratuites, 24 h/24 :**
+• France : 3114 (numéro national de prévention du suicide)
+• Belgique : 0800 32 123 (Centre de prévention du suicide)
+• Suisse : 143 (La Main Tendue)
+• Partout : findahelpline.com
+
+Vous n'êtes pas seul(e), et ce moment passera. Veuillez contacter une personne maintenant.
+        """.trimIndent()
+        else -> """
 **What you are carrying right now is heavy, and you deserve real human support.**
 
 I am an app, not an emergency service. I cannot keep you safe on my own.

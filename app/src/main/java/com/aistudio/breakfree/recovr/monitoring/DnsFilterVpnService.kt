@@ -102,7 +102,7 @@ class DnsFilterVpnService : VpnService() {
         private fun currentLanguage(context: Context): AppLanguage {
             val code = context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
                 .getString("selected_language", "en")
-            return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
+            return when (code) { "ar" -> AppLanguage.ARABIC; "fr" -> AppLanguage.FRENCH; else -> AppLanguage.ENGLISH }
         }
     }
 
@@ -307,7 +307,7 @@ class DnsFilterVpnService : VpnService() {
     private fun currentLanguage(): AppLanguage {
         val code = getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
             .getString("selected_language", "en")
-        return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
+        return when (code) { "ar" -> AppLanguage.ARABIC; "fr" -> AppLanguage.FRENCH; else -> AppLanguage.ENGLISH }
     }
 
     private fun createNotificationChannel() {

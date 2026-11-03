@@ -187,10 +187,10 @@ object StealthManager {
         val stealth = p.stealthEnabled && p.discreetNotifications
         val code = context.getSharedPreferences("breakfree_prefs", Context.MODE_PRIVATE)
             .getString("selected_language", "en")
-        val language = if (code == "ar") {
-            com.aistudio.breakfree.recovr.model.AppLanguage.ARABIC
-        } else {
-            com.aistudio.breakfree.recovr.model.AppLanguage.ENGLISH
+        val language = when (code) {
+            "ar" -> com.aistudio.breakfree.recovr.model.AppLanguage.ARABIC
+            "fr" -> com.aistudio.breakfree.recovr.model.AppLanguage.FRENCH
+            else -> com.aistudio.breakfree.recovr.model.AppLanguage.ENGLISH
         }
         val neutralName = com.aistudio.breakfree.recovr.localization.Translations
             .t("stealth_notif_channel", language)

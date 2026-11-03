@@ -29,8 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -531,58 +530,10 @@ private fun AiProviderDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var kind by remember { mutableStateOf(current.kind) }
-    var modelInput by remember { mutableStateOf(current.model) }
-    var baseUrlInput by remember { mutableStateOf(current.baseUrl) }
     var keyInput by remember { mutableStateOf(current.apiKey) }
-
-    var availableModels by remember { mutableStateOf<List<String>>(emptyList()) }
-    var isLoadingModels by remember { mutableStateOf(false) }
-    var modelsError by remember { mutableStateOf<String?>(null) }
-    var modelsExpanded by remember { mutableStateOf(false) }
 
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
-
-    fun loadModels() {
-        val config = AiProviderConfig(
-            kind = kind,
-            baseUrl = baseUrlInput,
-            model = modelInput,
-            apiKey = keyInput
-        )
-        if (keyInput.isBlank() && kind != AiProviderKind.GEMINI) {
-            modelsError = Translations.t("ai_key_required", language)
-            return
-        }
-        isLoadingModels = true
-        modelsError = null
-        scope.launch {
-            try {
-                val models = AiModelFetcher.fetchModels(config)
-                availableModels = models
-                if (models.isNotEmpty() && modelInput.isBlank()) {
-                    modelInput = models.first()
-                }
-                if (models.isEmpty()) {
-                    modelsError = Translations.t("ai_models_none", language)
-                }
-            } catch (e: Exception) {
-                Log.w("AiProviderDialog", "Model fetch failed: ${e.message}")
-                availableModels = emptyList()
-                modelsError = Translations.t("ai_models_failed", language)
-            } finally {
-                isLoadingModels = false
-            }
-        }
-    }
-
-    // Auto-load when the provider changes (including the first composition).
-    LaunchedEffect(kind) {
-        if (keyInput.isNotBlank() || kind == AiProviderKind.GEMINI) {
-            loadModels()
-        }
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -615,155 +566,11 @@ private fun AiProviderDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Text(
-                    text = Translations.t("ai_provider_label", language),
-                    color = TextSecondary,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AiProviderKind.entries.forEach { option ->
-                        val selected = option == kind
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) GreenCalmContainer else BlackCard)
-                                .border(
-                                    1.dp,
-                                    if (selected) GreenCalm.copy(alpha = 0.45f) else WhiteSubtleBorder,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable { kind = option }
-                                .padding(horizontal = 12.dp, vertical = 9.dp)
-                                .testTag("ai_provider_${option.key}"),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = option.title(language),
-                                color = if (selected) GreenCalmLight else TextSecondary,
-                                fontSize = 12.5.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                if (availableModels.isNotEmpty()) {
-                    ExposedDropdownMenuBox(
-                        expanded = modelsExpanded,
-                        onExpandedChange = { modelsExpanded = it },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        OutlinedTextField(
-                            value = modelInput,
-                            onValueChange = { modelInput = it },
-                            label = { Text(Translations.t("ai_model_label", language)) },
-                            placeholder = { Text(kind.defaultModel, color = TextMuted) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelsExpanded) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = modelsExpanded,
-                            onDismissRequest = { modelsExpanded = false }
-                        ) {
-                            availableModels.forEach { model ->
-                                Text(
-                                    text = model,
-                                    fontSize = 12.sp,
-                                    color = TextPrimary,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            modelInput = model
-                                            modelsExpanded = false
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    OutlinedTextField(
-                        value = modelInput,
-                        onValueChange = { modelInput = it },
-                        label = { Text(Translations.t("ai_model_label", language)) },
-                        placeholder = { Text(kind.defaultModel, color = TextMuted) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    if (isLoadingModels) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(
-                                color = GreenCalmLight,
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = Translations.t("ai_loading_models", language),
-                                color = TextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
-                    } else {
-                        TextButton(onClick = { loadModels() }) {
-                            Text(
-                                text = Translations.t("ai_load_models", language),
-                                color = GreenCalmLight,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    if (modelsError != null) {
-                        Text(
-                            text = modelsError!!,
-                            color = SoftGold,
-                            fontSize = 10.5.sp,
-                            lineHeight = 13.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = baseUrlInput,
-                    onValueChange = { baseUrlInput = it },
-                    label = { Text(Translations.t("ai_base_url_label", language)) },
-                    placeholder = { Text(kind.defaultBaseUrl, color = TextMuted) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = keyInput,
                     onValueChange = { keyInput = it },
                     label = { Text(Translations.t("ai_api_key_label", language)) },
-                    placeholder = { Text("sk-...", color = TextMuted) },
+                    placeholder = { Text("AIza...", color = TextMuted) },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
@@ -780,7 +587,7 @@ private fun AiProviderDialog(
                 ) {
                     TextButton(
                         onClick = {
-                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(kind.keyPageUrl))
+                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(AiProviderKind.GEMINI.keyPageUrl))
                             browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             context.startActivity(browserIntent)
                         }
@@ -795,12 +602,7 @@ private fun AiProviderDialog(
 
                     TextButton(
                         onClick = {
-                            val config = AiProviderConfig(
-                                kind = kind,
-                                baseUrl = baseUrlInput,
-                                model = modelInput,
-                                apiKey = keyInput
-                            )
+                            val config = AiProviderConfig(apiKey = keyInput)
                             isTesting = true
                             testResult = null
                             scope.launch {
@@ -847,14 +649,7 @@ private fun AiProviderDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    onSave(
-                        AiProviderConfig(
-                            kind = kind,
-                            baseUrl = baseUrlInput,
-                            model = modelInput,
-                            apiKey = keyInput
-                        )
-                    )
+                    onSave(AiProviderConfig(apiKey = keyInput))
                 }
             ) {
                 Text(

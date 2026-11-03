@@ -100,6 +100,15 @@ object UninstallLock {
     }
 
     /**
+     * True while the 90-day commitment protects the app's own surfaces: uninstall,
+     * deactivation, the content monitor and the DNS shield. While this is on, in-app
+     * code must refuse to weaken any of them — there is no PIN, no gate, no exception
+     * until the commitment expires on its own.
+     */
+    fun tamperLocked(context: Context): Boolean =
+        isActive(context) && daysRemaining(context) > 0
+
+    /**
      * Localised date of the automatic release, in the app's own language rather than the
      * system one — an Arabic screen showing "Jan 26, 2027" looks like a bug.
      */

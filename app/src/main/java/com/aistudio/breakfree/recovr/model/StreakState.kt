@@ -94,43 +94,55 @@ data class StreakState(
 enum class RecoveryPhase(
     val titleEn: String,
     val titleAr: String,
+    val titleFr: String,
     val descEn: String,
     val descAr: String,
+    val descFr: String,
     val costumeType: com.aistudio.breakfree.recovr.ui.components.CostumeIconType
 ) {
     ACUTE_DETOX(
         "Acute Detox",
         "إزالة السموم الحادة",
+        "Détox aiguë",
         "Clearing dopamine overload; initial brain receptor stabilization.",
         "تطهير فرط الدوبامين واستقرار مستقبلات الدماغ الأولى.",
+        "Élimination de la surcharge dopaminergique ; stabilisation initiale des récepteurs cérébraux.",
         com.aistudio.breakfree.recovr.ui.components.CostumeIconType.LIGHTNING
     ),
     RECEPTOR_AWAKENING(
         "Receptor Awakening",
         "استيقاظ المستقبلات",
+        "Éveil des récepteurs",
         "Dopamine D2 receptors multiplying; natural joys start returning.",
         "تضاعف مستقبلات الدوبامين D2 وبداية عودة المتعة للأشياء الطبيعية.",
+        "Les récepteurs de dopamine D2 se multiplient ; les joies naturelles reviennent.",
         com.aistudio.breakfree.recovr.ui.components.CostumeIconType.SPROUT
     ),
     NEURAL_REWIRING(
         "Neural Rewiring",
         "إعادة التشكيل العصبي",
+        "Recâblage neuronal",
         "DeltaFosB buildup dissipating; automatic trigger habits weakening.",
         "تلاشي بروتين دلتا-فوس-بي وضعف روابط العادات التلقائية السابقة.",
+        "Dissipation de l'accumulation de DeltaFosB ; affaiblissement des habitudes déclencheuses automatiques.",
         com.aistudio.breakfree.recovr.ui.components.CostumeIconType.BRAIN
     ),
     EXECUTIVE_CONTROL(
         "Executive Control",
         "تعزيز التحكم التنفيذي",
+        "Contrôle exécutif",
         "Prefrontal cortex grey matter thickening; high resilience.",
         "تكثيف المادة الرمادية في القشرة الجبهية ومقاومة عالية للإغراءات.",
+        "Épaississement de la matière grise du cortex préfrontal ; haute résilience.",
         com.aistudio.breakfree.recovr.ui.components.CostumeIconType.SHIELD
     ),
     TRUE_MASTERY(
         "True Freedom & Mastery",
         "الحرية والسيادة الكاملة",
+        "Vraie liberté & maîtrise",
         "Complete baseline transformation; peaceful, empowered mental clarity.",
         "تحول كامل لخط الأساس الذهني؛ وضوح عقلي وسكينة وقوة داخلية.",
+        "Transformation complète de la ligne de base ; clarté mentale paisible et autonomie.",
         com.aistudio.breakfree.recovr.ui.components.CostumeIconType.CROWN
     )
 }

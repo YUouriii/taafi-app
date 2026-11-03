@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -94,6 +95,15 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         private const val GUARD_SCAN_INTERVAL_MS = 350L
         private const val GUARD_MAX_NODES = 200
         private const val GUARD_MAX_CHILDREN = 20
+        private const val PROTECTION_ALIGN_TOLERANCE_PX = 150
+
+        /**
+         * How long to wait before re-checking a tentative protection-screen decision:
+         * long enough for page-transition animations to finish so a merged node tree
+         * (two pages briefly shown at once) cannot fake a guarded screen, short enough
+         * that a real protected screen is still blocked almost immediately.
+         */
+        private const val PROTECTION_SETTLE_DELAY_MS = 450L
 
         /** Re-read the app's own labels periodically so a Stealth Mode switch is noticed. */
         private const val IDENTITIES_CACHE_TTL_MS = 60_000L
@@ -182,7 +192,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
     private fun currentLanguage(): AppLanguage {
         val code = getSharedPreferences(MonitoringPreferences.PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_LANGUAGE, "en")
-        return if (code == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
+        return when (code) { "ar" -> AppLanguage.ARABIC; "fr" -> AppLanguage.FRENCH; else -> AppLanguage.ENGLISH }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -194,7 +204,10 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         // resolves the countdown the overlay is showing and makes it flicker.
         if (packageName == this.packageName) return
 
-        // Guard against deactivation, uninstall, or settings tampering during 90-day lock
+        // Guard against deactivation, uninstall, or settings tampering during 90-day lock.
+        // The row-click check comes first: it is the precise "user just tapped the
+        // BreakFree row in a Settings list" signal.
+        if (checkGuardRowClick(event)) return
         if (checkAndGuardUninstallLock()) return
 
         if (packageName in IGNORED_PACKAGES || isKeyboard(packageName)) return
@@ -235,10 +248,93 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
 
     private var lastGuardToastMillis = 0L
     private var lastGuardScanAtMillis = 0L
+    private var lastGuardWindowPackage: String? = null
     private var cachedAppIdentities: List<String>? = null
     private var cachedAppIdentitiesAtMillis = 0L
+    private var pendingProtectionSettle: Job? = null
 
-    private enum class UninstallAttempt { NONE, APP_INFO_SCREEN, CONFIRMATION_DIALOG, ADMIN_LIST_SCREEN }
+    private enum class UninstallAttempt {
+        NONE, APP_INFO_SCREEN, CONFIRMATION_DIALOG, ADMIN_LIST_SCREEN, PROTECTION_SCREEN
+    }
+
+    /**
+     * Precise row-level guard: when the user taps a row that names this app inside a
+     * Settings surface (Accessibility list, Display-over list, app lists in the
+     * security center…), they are heading for a protection toggle. The click is
+     * intercepted directly — no screen-wide scan needed — so generic Settings pages
+     * are not disturbed unless BreakFree itself was clicked.
+     */
+    private fun checkGuardRowClick(event: AccessibilityEvent?): Boolean {
+        if (!UninstallLock.tamperLocked(this)) return false
+        val e = event ?: return false
+        if (e.eventType !in listOf(
+                AccessibilityEvent.TYPE_VIEW_CLICKED,
+                AccessibilityEvent.TYPE_VIEW_LONG_CLICKED
+            )
+        ) return false
+        val pkg = e.packageName?.toString()?.lowercase(Locale.ROOT) ?: return false
+        if (!isUninstallSurfacePackage(pkg)) return false
+
+        val identities = appIdentities()
+
+        // The clicked node's own subtree: rows usually place the app name as a sibling
+        // TextView inside the row container. The scan is capped deliberately — nothing
+        // outside the tapped row may be considered, so tapping OTHER rows (Google, Phone…)
+        // that merely share a screen with BreakFree never triggers the guard. Big
+        // scrollable containers (a whole list) are rejected even when they are the source.
+        val source = e.source
+        if (source != null && !source.isScrollable && source.childCount <= 12) {
+            if (subtreeContainsIdentity(source, identities, 60)) {
+                blockAndDismiss(closeSettings = false)
+                return true
+            }
+        }
+
+        // Fallback: the row name may sit on the tapped node's own text chain.
+        var node = nodeParentOf(source)
+        var hops = 0
+        val ownText = StringBuilder()
+        while (node != null && hops < 4) {
+            node.text?.let { ownText.append(it.toString()).append(' ') }
+            node.contentDescription?.let { ownText.append(it.toString()).append(' ') }
+            node = nodeParentOf(node)
+            hops++
+        }
+        val own = ownText.toString().lowercase(Locale.ROOT)
+        if (identities.any { own.contains(it) }) {
+            blockAndDismiss(closeSettings = false)
+            return true
+        }
+        return false
+    }
+
+    private fun nodeParentOf(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? =
+        try { node?.parent } catch (_: Exception) { null }
+
+    /** Depth-limited check whether any text in the subtree names this app. */
+    private fun subtreeContainsIdentity(
+        start: AccessibilityNodeInfo,
+        identities: List<String>,
+        maxNodes: Int
+    ): Boolean {
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.addLast(start)
+        var visited = 0
+        while (stack.isNotEmpty() && visited < maxNodes) {
+            val cur = stack.removeLast()
+            visited++
+            val text = buildString {
+                cur.text?.let { append(it.toString()) }
+                append(' ')
+                cur.contentDescription?.let { append(it.toString()) }
+            }.lowercase(Locale.ROOT)
+            if (identities.any { text.contains(it) }) return true
+            for (i in 0 until minOf(cur.childCount, 8)) {
+                cur.getChild(i)?.let { stack.addLast(it) }
+            }
+        }
+        return false
+    }
 
     /**
      * When the 90-day commitment is active, stop the user on the one screen that can
@@ -253,7 +349,7 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
      */
     private fun checkAndGuardUninstallLock(): Boolean {
         // Only enforce while the lock is active and within the 90-day window
-        if (!UninstallLock.isActive(this) || UninstallLock.daysRemaining(this) <= 0) {
+        if (!UninstallLock.tamperLocked(this)) {
             return false
         }
 
@@ -266,6 +362,14 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         if (!isUninstallSurfacePackage(windowPackage)) return false
 
         val now = SystemClock.elapsedRealtime()
+        // A window the user has not been on before must be scanned immediately: the
+        // rate limit exists for repeated events on the same screen, not for letting a
+        // freshly-opened deactivation screen slip by unguarded. Otherwise someone could
+        // sprint through Settings and flip a protected switch before the first scan.
+        if (windowPackage != lastGuardWindowPackage) {
+            lastGuardWindowPackage = windowPackage
+            lastGuardScanAtMillis = 0L
+        }
         if (now - lastGuardScanAtMillis < GUARD_SCAN_INTERVAL_MS) return false
         lastGuardScanAtMillis = now
 
@@ -288,6 +392,38 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
             }
             UninstallAttempt.ADMIN_LIST_SCREEN -> {
                 blockAndDismiss(closeSettings = false)
+                true
+            }
+            UninstallAttempt.PROTECTION_SCREEN -> {
+                // Transition animations momentarily merge two Settings pages into one
+                // node tree: the outgoing detail (which owns the toggle) plus the
+                // incoming list (which owns the app name) can fake a protection screen.
+                // A settled tree shows only one page — so re-scan once the animation
+                // stops and block only when the steady state is still a protected
+                // screen naming this app.
+                if (pendingProtectionSettle?.isActive != true) {
+                    pendingProtectionSettle = serviceScope.launch {
+                        delay(PROTECTION_SETTLE_DELAY_MS)
+                        try {
+                            val fresh = rootInActiveWindow ?: return@launch
+                            val freshPkg = fresh.packageName?.toString()?.lowercase(Locale.ROOT)
+                                ?: return@launch
+                            if (!isUninstallSurfacePackage(freshPkg)) return@launch
+                            val reattempt = try {
+                                scanForUninstallAttempt(fresh)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error re-inspecting settings node tree", e)
+                                UninstallAttempt.NONE
+                            }
+                            if (reattempt != UninstallAttempt.NONE) {
+                                // The steady state is a guarded surface naming this app.
+                                blockAndDismiss(closeSettings = false)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Protection re-scan failed", e)
+                        }
+                    }
+                }
                 true
             }
         }
@@ -370,10 +506,10 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         if (now - lastGuardToastMillis > 2500L) {
             lastGuardToastMillis = now
             val daysLeft = UninstallLock.daysRemaining(this)
-            val msg = if (currentLanguage() == AppLanguage.ARABIC) {
-                "تعافي: قفل الـ 90 يوماً مفعّل (متبقي $daysLeft يوماً). تم منع إلغاء التنشيط أو الحذف لحماية تعافيك."
-            } else {
-                "BreakFree: 90-day recovery lock is active ($daysLeft days remaining). Uninstallation and deactivation are guarded."
+            val msg = when (currentLanguage()) {
+                AppLanguage.ARABIC -> "تعافي: قفل الـ 90 يوماً مفعّل (متبقي $daysLeft يوماً). تم منع إلغاء التنشيط أو الحذف لحماية تعافيك."
+                AppLanguage.FRENCH -> "BreakFree : verrou de 90 jours actif ($daysLeft jours restants). Désactivation et désinstallation sont protégées."
+                else -> "BreakFree: 90-day recovery lock is active ($daysLeft days remaining). Uninstallation and deactivation are guarded."
             }
             android.widget.Toast.makeText(applicationContext, msg, android.widget.Toast.LENGTH_LONG).show()
         }
@@ -439,6 +575,61 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Permission screens that kill a protection surface while the 90-day commitment runs:
+     * the per-app Accessibility service screen (kills the monitor), the app's notification
+     * settings (kills the guard/grace notifications) and "Display over other apps" (kills
+     * the step-back overlay). The wording alone is not enough — the screen-level rule
+     * additionally requires a toggle switch to be visible, so the *list* pages (which
+     * merely mention BreakFree) stay safe; a click on the actual row is caught by
+     * [checkGuardRowClick] instead.
+     */
+    private fun isProtectionScreenText(content: String): Boolean {
+        if (content.isBlank()) return false
+        return content.contains("accessibility") ||
+            content.contains("إمكانية الوصول") ||
+            content.contains("ميزات الوصول") ||
+            content.contains("قارئ الشاشة") ||
+            content.contains("notification") ||
+            content.contains("تنبيهات") ||
+            content.contains("الإشعارات") ||
+            content.contains("إدارة التنبيهات") ||
+            // Overlay / display-over-apps wording: stock Android and MIUI.
+            content.contains("display over") ||
+            content.contains("over other apps") ||
+            content.contains("appear on top") ||
+            content.contains("draw over") ||
+            content.contains("pop-up") ||
+            content.contains("pop up") ||
+            content.contains("popup") ||
+            content.contains("floating window") ||
+            content.contains("الظهور فوق") ||
+            content.contains("فوق التطبيقات") ||
+            content.contains("عرض فوق التطبيقات") ||
+            content.contains("الظهور أثناء") ||
+            content.contains("نافذة منبثقة") ||
+            content.contains("نافذة منبثقه") ||
+            content.contains("النوافذ المنبثقة") ||
+            content.contains("النوافذ المنبثقه") ||
+            content.contains("نوافذ منبثقة") ||
+            content.contains("نوافذ منبثقه") ||
+            content.contains("عرض نوافذ")
+    }
+
+    /**
+     * The one screen that can only exist for this app: the Accessibility detail screen,
+     * which renders this app's own service description. Matching our description text
+     * (or the "Restricted setting" dialog Android shows when the service is toggled for
+     * a sideloaded app) is unambiguous, so it can trigger without a switch requirement.
+     */
+    private fun isOwnAccessibilityDetailText(content: String): Boolean {
+        if (content.isBlank()) return false
+        return content.contains("visible text and address bar") ||
+            content.contains("يقرأ هذا التطبيق النص الظاهر") ||
+            content.contains("restricted setting") ||
+            content.contains("الإعدادات المقيّدة")
+    }
+
+    /**
      * Walks the visible Settings/installer window and reports whether the user is on the
      * screen that removes this app. Two things must both be present: something that names
      * this app, and a control that removes it. A stray "Accessibility" or "Device admin"
@@ -455,6 +646,16 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
         var hasUninstallControl = false
         var hasDeactivateDialog = false
         var hasAdminList = false
+        var hasProtectionScreen = false
+        var hasOwnAccessibilityDetail = false
+        var hasSwitchNode = false
+        var mentionText = "?"
+        var protectionText = "?"
+        var switchSource = "?"
+        var mentionBounds = android.graphics.Rect()
+        var switchBounds = android.graphics.Rect()
+        var hasMentionBounds = false
+        var hasSwitchBounds = false
 
         while (stack.isNotEmpty() && visited < GUARD_MAX_NODES) {
             val node = stack.removeLast()
@@ -467,6 +668,8 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
             if (combined.isNotEmpty()) {
                 if (!mentionsApp && identities.any { combined.contains(it) }) {
                     mentionsApp = true
+                    mentionText = "'${node.text}' bounds=${run { val r = android.graphics.Rect(); node.getBoundsInScreen(r); r.toShortString() }}"
+                    if (!hasMentionBounds) { node.getBoundsInScreen(mentionBounds); hasMentionBounds = true }
                 }
                 if (!hasUninstallControl && isUninstallControl(combined)) {
                     hasUninstallControl = true
@@ -477,6 +680,27 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
                 if (!hasAdminList && isAdminListText(combined)) {
                     hasAdminList = true
                 }
+                if (!hasProtectionScreen && isProtectionScreenText(combined)) {
+                    hasProtectionScreen = true
+                    protectionText = "'${node.text}' bounds=${run { val r = android.graphics.Rect(); node.getBoundsInScreen(r); r.toShortString() }}"
+                }
+                if (!hasOwnAccessibilityDetail && isOwnAccessibilityDetailText(combined)) {
+                    hasOwnAccessibilityDetail = true
+                }
+            }
+            val className = node.className?.toString() ?: ""
+            val viewId = node.viewIdResourceName ?: ""
+            // A Compose-rendered toggle (modern Settings pages) exposes no Switch class:
+            // it is a plain clickable View marked checkable=true. Count both.
+            if (!hasSwitchNode &&
+                (node.isCheckable || className.contains("Switch") || className.contains("CheckBox") ||
+                    viewId.contains("switch", ignoreCase = true) ||
+                    viewId.contains("check_box", ignoreCase = true))
+            ) {
+                hasSwitchNode = true
+                switchSource = "cls=$className checkable=${node.isCheckable} " +
+                    "text='${node.text}' bounds=${run { val r = android.graphics.Rect(); node.getBoundsInScreen(r); r.toShortString() }}"
+                if (!hasSwitchBounds) { node.getBoundsInScreen(switchBounds); hasSwitchBounds = true }
             }
 
             val childCount = minOf(node.childCount, GUARD_MAX_CHILDREN)
@@ -485,11 +709,33 @@ class ContentMonitoringAccessibilityService : AccessibilityService() {
             }
         }
 
+        val alignedSwitch = !hasSwitchNode || !hasMentionBounds || !hasSwitchBounds ||
+            kotlin.math.abs(mentionBounds.centerX() - switchBounds.centerX()) < PROTECTION_ALIGN_TOLERANCE_PX
+
         return when {
             hasDeactivateDialog -> UninstallAttempt.CONFIRMATION_DIALOG
-            mentionsApp && hasAdminList -> UninstallAttempt.ADMIN_LIST_SCREEN
             mentionsApp && hasUninstallControl -> UninstallAttempt.APP_INFO_SCREEN
+            hasOwnAccessibilityDetail && mentionsApp -> UninstallAttempt.PROTECTION_SCREEN
+            mentionsApp && hasAdminList -> UninstallAttempt.ADMIN_LIST_SCREEN
+            // Protection-screen wording only counts when the page also shows a toggle,
+            // which keeps the plain list pages out of the guard. During a page transition
+            // the outgoing and incoming pages briefly coexist in one node tree: the app
+            // name comes from one page and the toggle from the other (their horizontal
+            // centers are far apart). Only accept a toggle whose horizontal center lines
+            // up with the app name's (a genuine single page).
+            mentionsApp && hasProtectionScreen && hasSwitchNode && alignedSwitch -> UninstallAttempt.PROTECTION_SCREEN
             else -> UninstallAttempt.NONE
+        }.also { attempt ->
+            if (attempt != UninstallAttempt.NONE) {
+                Log.d(
+                    TAG,
+                    "GuardScan pkg=${root.packageName} attempt=$attempt mentionsApp=$mentionsApp " +
+                        "uninstallControl=$hasUninstallControl adminList=$hasAdminList " +
+                        "protection=$hasProtectionScreen switch=$hasSwitchNode " +
+                        "ownDetail=$hasOwnAccessibilityDetail dialog=$hasDeactivateDialog " +
+                        "mention=$mentionText protection=$protectionText switchSrc=$switchSource"
+                )
+            }
         }
     }
 

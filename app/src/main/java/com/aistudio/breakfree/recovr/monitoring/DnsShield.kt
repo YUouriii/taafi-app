@@ -130,13 +130,14 @@ object DnsShield {
     }
 
     /**
-     * Turns the shield off. **Blocking** on the Device Owner path.
+     * Turns the shield off. **Blocking** while the 90-day commitment runs.
      *
-     * While the 90-day commitment is running the shield is locked on purpose, so this
-     * refuses to act and returns false.
+     * Whether the shield is the Device-Owner Private DNS lock or the plain DNS VPN,
+     * this refuses to act while `UninstallLock.tamperLocked` is on, so neither can be
+     * weakened during the commitment.
      */
     fun disable(context: Context): Boolean {
-        if (isLockedByCommitment(context)) return false
+        if (UninstallLock.tamperLocked(context)) return false
 
         val preferences = MonitoringPreferences(context)
         preferences.dnsShieldEnabled = false
@@ -151,7 +152,7 @@ object DnsShield {
 
     /** True when the shield is locked because the 90-day commitment is still running. */
     fun isLockedByCommitment(context: Context): Boolean =
-        UninstallLock.isActive(context) && PrivateDnsShield.isLocked(context)
+        UninstallLock.tamperLocked(context)
 
     /**
      * Re-applies the shield on app start / resume. Called from the foreground, which is

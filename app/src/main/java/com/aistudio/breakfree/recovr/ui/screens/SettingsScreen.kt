@@ -233,17 +233,22 @@ fun SettingsScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(14.dp))
-                    // The two options name languages, not directions, so keep them in a
-                    // fixed order (English | العربية) instead of mirroring with the UI.
+                    // Three supported languages; fixed Ltr order so labels stay readable.
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         SegmentedControl(
-                            options = listOf("English", "العربية"),
-                            selectedIndex = if (language == AppLanguage.ARABIC) 1 else 0,
+                            options = listOf("English", "العربية", "Français"),
+                            selectedIndex = when (language) {
+                                AppLanguage.ENGLISH -> 0
+                                AppLanguage.ARABIC -> 1
+                                AppLanguage.FRENCH -> 2
+                            },
                             onSelect = { index ->
-                                val wantsArabic = index == 1
-                                if ((language == AppLanguage.ARABIC) != wantsArabic) {
-                                    viewModel.toggleLanguage()
+                                val target = when (index) {
+                                    0 -> AppLanguage.ENGLISH
+                                    1 -> AppLanguage.ARABIC
+                                    else -> AppLanguage.FRENCH
                                 }
+                                if (target != language) viewModel.setLanguage(target)
                             },
                             modifier = Modifier.testTag("language_segmented_control")
                         )
@@ -825,10 +830,11 @@ fun SettingsScreen(
             text = {
                 Column {
                     Text(
-                        text = if (language == AppLanguage.ARABIC)
-                            "أدخل عدد الأيام النظيفة التي حققتها:"
-                        else
-                            "Enter how many clean days you have already achieved:",
+                        text = when (language) {
+                            AppLanguage.ARABIC -> "أدخل عدد الأيام النظيفة التي حققتها:"
+                            AppLanguage.FRENCH -> "Saisissez le nombre de jours propres déjà accomplis :"
+                            else -> "Enter how many clean days you have already achieved:"
+                        },
                         color = TextSecondary,
                         fontSize = 13.sp,
                         lineHeight = 19.sp
@@ -856,7 +862,7 @@ fun SettingsScreen(
                     ),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text(text = if (language == AppLanguage.ARABIC) "حفظ" else "Save")
+                    Text(text = if (language == AppLanguage.ARABIC) "حفظ" else if (language == AppLanguage.FRENCH) "Enregistrer" else "Save")
                 }
             },
             dismissButton = {
@@ -886,6 +892,8 @@ fun SettingsScreen(
                 Text(
                     text = if (language == AppLanguage.ARABIC)
                         "هل أنت متأكد من رغبتك في تصفير العداد؟ التعافي مسار شجاع، والاعتراف بالانتكاسة هو الخطوة الأولى لبداية أقوى."
+                    else if (language == AppLanguage.FRENCH)
+                        "Êtes-vous sûr de vouloir réinitialiser votre série ? La récupération demande du courage, et reconnaître une rechute est la première étape vers une plus grande force."
                     else
                         "Are you sure you want to reset your streak? Recovery takes courage, and acknowledging a slip is the first step toward greater strength.",
                     color = TextSecondary,
@@ -903,7 +911,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = if (language == AppLanguage.ARABIC) "تأكيد وإعادة البدء" else "Reset now",
+                        text = if (language == AppLanguage.ARABIC) "تأكيد وإعادة البدء" else if (language == AppLanguage.FRENCH) "Confirmer et réinitialiser" else "Reset now",
                         fontWeight = FontWeight.Bold
                     )
                 }

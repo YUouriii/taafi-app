@@ -2,6 +2,7 @@ package com.aistudio.breakfree.recovr
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -96,6 +97,8 @@ import com.aistudio.breakfree.recovr.ui.components.CostumeIconType
 import com.aistudio.breakfree.recovr.ui.components.FirstRunShieldSetupDialog
 import com.aistudio.breakfree.recovr.stealth.StealthManager
 import com.aistudio.breakfree.recovr.ui.components.StealthLockScreen
+import com.aistudio.breakfree.recovr.pause.PauseNotifier
+import com.aistudio.breakfree.recovr.ui.components.PauseGateScreen
 import com.aistudio.breakfree.recovr.ui.components.SosBreathingModal
 import com.aistudio.breakfree.recovr.update.AutoUpdater
 import com.aistudio.breakfree.recovr.ui.screens.AiCompanionScreen
@@ -208,6 +211,18 @@ class MainActivity : FragmentActivity() {
     }
 
     /**
+     * Tapping a pause notification while the app is already open must reopen the gate,
+     * not just bring the last tab forward.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(PauseNotifier.EXTRA_OPEN_PAUSE, false)) {
+            viewModel.resumePauseGate()
+        }
+    }
+
+    /**
      * Re-applies the DNS shield when it is on: system Private DNS for a Device Owner, the
      * DNS-only VPN otherwise. The Device Owner path performs a DoT connectivity check,
      * which blocks, so the work runs off the main thread. The UI status is refreshed
@@ -257,6 +272,11 @@ fun BreakFreeApp(
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     val isSosVisible by viewModel.isSosModalVisible.collectAsState()
+    // The Pause: a ten-minute gate that can open over any tab.
+    val pauseGate by viewModel.pauseGate.collectAsState()
+    val myPromise by viewModel.myPromise.collectAsState()
+    val urgesSurvived by viewModel.urgesSurvived.collectAsState()
+    val streakSummary by viewModel.streakSummary.collectAsState()
     // Shown on whatever tab the user is on: a pending streak decision must not be hidden
     // behind the Home tab.
     val showRelapseConfirmation by viewModel.showRelapseConfirmation.collectAsState()
@@ -349,8 +369,27 @@ fun BreakFreeApp(
             isVisible = isSosVisible,
             language = language,
             onDismiss = { viewModel.closeSosModal() },
-            onComplete = { viewModel.completeSosSession() }
+            onComplete = { viewModel.completeSosSession() },
+            onStartPause = { viewModel.startPauseGate() }
         )
+
+        // The Pause: ten minutes between the urge and the relapse. Drawn above the tabs
+        // so it cannot be lost behind a screen the user navigates to.
+        if (pauseGate.isVisible) {
+            PauseGateScreen(
+                state = pauseGate,
+                promise = myPromise,
+                cleanDays = streakSummary.days,
+                bestDays = maxOf(
+                    streakSummary.longestStreakSeconds / 86_400L,
+                    streakSummary.days
+                ),
+                urgesSurvived = urgesSurvived,
+                language = language,
+                onSavePromise = { viewModel.saveMyPromise(it) },
+                onFinish = { viewModel.finishPauseGate(it) }
+            )
+        }
 
         // First run: the Shield only works if the system permissions behind it exist, so
         // the three layers are offered once, up front. Nothing is enabled by opening it.
@@ -436,17 +475,21 @@ fun BreakFreeApp(
                 },
                 title = {
                     Text(
-                        text = if (language == AppLanguage.ARABIC) "انتهت نافذة التراجع" else "Your step-back window ended",
+                        text = when (language) {
+                            AppLanguage.ARABIC -> "انتهت نافذة التراجع"
+                            AppLanguage.FRENCH -> "Votre fenêtre de recul est terminée"
+                            else -> "Your step-back window ended"
+                        },
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
                 },
                 text = {
                     Text(
-                        text = if (language == AppLanguage.ARABIC) {
-                            "لم نسجّل أي شيء بعد. هل حدثت انتكاسة فعلاً، أم أنك ما زلت نظيفاً؟ اختيارك يحدد ما نكتبه، لا المؤقّت."
-                        } else {
-                            "Nothing has been recorded yet. Did you actually slip, or are you still clean? Your answer decides what we write — not the timer."
+                        text = when (language) {
+                            AppLanguage.ARABIC -> "لم نسجّل أي شيء بعد. هل حدثت انتكاسة فعلاً، أم أنك ما زلت نظيفاً؟ اختيارك يحدد ما نكتبه، لا المؤقّت."
+                            AppLanguage.FRENCH -> "Rien n'a encore été enregistré. Avez-vous vraiment rechuté, ou êtes-vous toujours propre ? Votre réponse décide de ce que nous écrivons — pas le minuteur."
+                            else -> "Nothing has been recorded yet. Did you actually slip, or are you still clean? Your answer decides what we write — not the timer."
                         },
                         color = TextSecondary,
                         fontSize = 14.sp,
@@ -463,7 +506,11 @@ fun BreakFreeApp(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text(
-                            text = if (language == AppLanguage.ARABIC) "نعم، حدثت انتكاسة" else "Yes, I slipped",
+                            text = when (language) {
+                            AppLanguage.ARABIC -> "نعم، حدثت انتكاسة"
+                            AppLanguage.FRENCH -> "Oui, j'ai rechuté"
+                            else -> "Yes, I slipped"
+                        },
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -471,7 +518,11 @@ fun BreakFreeApp(
                 dismissButton = {
                     TextButton(onClick = { viewModel.dismissRelapseConfirmation() }) {
                         Text(
-                            text = if (language == AppLanguage.ARABIC) "لا، ما زلت نظيفاً" else "No, I'm still clean",
+                            text = when (language) {
+                            AppLanguage.ARABIC -> "لا، ما زلت نظيفاً"
+                            AppLanguage.FRENCH -> "Non, je suis toujours propre"
+                            else -> "No, I'm still clean"
+                        },
                             color = GreenCalmLight,
                             fontWeight = FontWeight.Bold
                         )

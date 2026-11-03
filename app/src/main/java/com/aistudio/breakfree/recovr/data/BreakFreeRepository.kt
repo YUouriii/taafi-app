@@ -9,6 +9,9 @@ import androidx.security.crypto.MasterKey
 import com.aistudio.breakfree.recovr.ai.AiProviderConfig
 import com.aistudio.breakfree.recovr.ai.AiProviderKind
 import com.aistudio.breakfree.recovr.model.DailyCheckIn
+import com.aistudio.breakfree.recovr.model.PauseGateUiState
+import com.aistudio.breakfree.recovr.model.PauseOutcome
+import com.aistudio.breakfree.recovr.model.PauseSession
 import com.aistudio.breakfree.recovr.model.StreakState
 import com.aistudio.breakfree.recovr.model.UserProfile
 import com.google.firebase.Timestamp
@@ -52,6 +55,21 @@ class BreakFreeRepository(context: Context) {
         private const val KEY_CHECK_INS_PREFIX = "checkins_json_"
         private const val KEY_PENDING_SYNC_PREFIX = "pending_sync_dates_"
 
+        // The Pause: the user's promise, the live gate, and the local session history.
+        private const val KEY_MY_PROMISE = "my_promise_text"
+        private const val KEY_PAUSE_ACTIVE_START = "pause_active_start"
+        private const val KEY_PAUSE_SESSIONS = "pause_sessions_json"
+
+        // Rewire 30 micro-lessons
+        private const val KEY_REWIRE_COMPLETED = "rewire_completed_ids"
+        private const val KEY_REWIRE_CURRENT = "rewire_current_index"
+
+        // Weekly insight card
+        private const val KEY_LAST_INSIGHT_WEEK = "last_insight_week"
+
+        /** Keep the local history small; it is a counter and a pattern, not an archive. */
+        private const val MAX_PAUSE_SESSIONS = 500
+
         // AI provider settings. The key itself is kept in the encrypted store.
         private const val KEY_AI_PROVIDER = "ai_provider_kind"
         private const val KEY_AI_BASE_URL = "ai_base_url"
@@ -68,10 +86,10 @@ class BreakFreeRepository(context: Context) {
     }
 
     /**
-     * The AI provider the user configured. Any OpenAI-compatible endpoint works (OpenAI,
-     * OpenRouter, Groq, DeepSeek, Mistral, a local server...), as does Gemini and Claude.
-     * A missing key means "no model configured": the counselor falls back to its offline
-     * guidance instead of pretending to call something.
+     * The AI provider the user configured. This is always Google Gemini: either the
+     * user's own free AI Studio key, or the key-less Firebase AI Logic route when they
+     * are signed in with Google. A missing key means "no direct model": the counselor
+     * falls back to its offline guidance instead of pretending to call something.
      */
     fun getAiConfig(): AiProviderConfig {
         migrateLegacyGeminiKey()
@@ -183,6 +201,102 @@ class BreakFreeRepository(context: Context) {
             .putLong(KEY_CLEAN_SINCE, System.currentTimeMillis())
             .putInt(KEY_RELAPSES_COUNT, relapses)
             .apply()
+    }
+
+    // ---------------------------------------------------------------------------------
+    // The Pause: a ten-minute gate offered before a relapse.
+    //
+    // Everything here is local-only. The promise is the sentence the user wants to read
+    // in that moment; the session history feeds the "urges survived" counter and, later,
+    // the weekly insight card. Nothing is uploaded.
+    // ---------------------------------------------------------------------------------
+
+    fun getMyPromise(): String = prefs.getString(KEY_MY_PROMISE, null).orEmpty()
+
+    fun saveMyPromise(text: String) {
+        prefs.edit().putString(KEY_MY_PROMISE, text.trim()).apply()
+    }
+
+    /** Start time of a gate that is currently open, or 0 when there is none. */
+    fun getActivePauseStart(): Long = prefs.getLong(KEY_PAUSE_ACTIVE_START, 0L)
+
+    fun setActivePauseStart(startedAtMs: Long) {
+        prefs.edit().putLong(KEY_PAUSE_ACTIVE_START, startedAtMs).apply()
+    }
+
+    fun getPauseSessions(): List<PauseSession> {
+        val raw = prefs.getString(KEY_PAUSE_SESSIONS, null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            val list = mutableListOf<PauseSession>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                list.add(
+                    PauseSession(
+                        id = obj.optString("id"),
+                        startedAtMs = obj.optLong("startedAtMs", 0L),
+                        durationMs = obj.optLong("durationMs", PauseGateUiState.PAUSE_DURATION_MS),
+                        outcome = runCatching {
+                            PauseOutcome.valueOf(obj.optString("outcome"))
+                        }.getOrDefault(PauseOutcome.ENDED)
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun recordPauseSession(session: PauseSession): List<PauseSession> {
+        val updated = (listOf(session) + getPauseSessions()).take(MAX_PAUSE_SESSIONS)
+        val arr = JSONArray()
+        for (s in updated) {
+            arr.put(
+                JSONObject().apply {
+                    put("id", s.id)
+                    put("startedAtMs", s.startedAtMs)
+                    put("durationMs", s.durationMs)
+                    put("outcome", s.outcome.name)
+                }
+            )
+        }
+        prefs.edit().putString(KEY_PAUSE_SESSIONS, arr.toString()).apply()
+        return updated
+    }
+
+    /** How many waves the user has ridden out through the gate. */
+    fun getUrgesSurvivedCount(): Int =
+        getPauseSessions().count { it.outcome == PauseOutcome.SURVIVED }
+
+    // ---------------------------------------------------------------------------------
+    // Rewire 30: micro-lessons. Progress is local-only.
+    // ---------------------------------------------------------------------------------
+
+    fun getRewireCompletedIds(): Set<Int> {
+        val raw = prefs.getString(KEY_REWIRE_COMPLETED, null) ?: return emptySet()
+        return raw.split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
+    }
+
+    fun markRewireLessonComplete(id: Int) {
+        val updated = getRewireCompletedIds() + id
+        prefs.edit().putString(KEY_REWIRE_COMPLETED, updated.joinToString(",")).apply()
+    }
+
+    fun getRewireCurrentIndex(): Int = prefs.getInt(KEY_REWIRE_CURRENT, 1).coerceIn(1, 30)
+
+    fun setRewireCurrentIndex(index: Int) {
+        prefs.edit().putInt(KEY_REWIRE_CURRENT, index.coerceIn(1, 30)).apply()
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Weekly insight card: track which ISO week was last acknowledged.
+    // ---------------------------------------------------------------------------------
+
+    fun getLastInsightWeek(): Long = prefs.getLong(KEY_LAST_INSIGHT_WEEK, 0L)
+
+    fun setLastInsightWeek(weekStartMs: Long) {
+        prefs.edit().putLong(KEY_LAST_INSIGHT_WEEK, weekStartMs).apply()
     }
 
     /**

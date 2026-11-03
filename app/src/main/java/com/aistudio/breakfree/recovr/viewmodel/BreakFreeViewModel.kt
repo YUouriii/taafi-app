@@ -13,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.aistudio.breakfree.recovr.ai.AiProviderConfig
 import com.aistudio.breakfree.recovr.ai.AiRecoveryCounselor
 import com.aistudio.breakfree.recovr.ai.CrisisSupport
+import com.aistudio.breakfree.recovr.ai.PauseMessages
 import com.aistudio.breakfree.recovr.data.BreakFreeRepository
 import com.aistudio.breakfree.recovr.data.FirestoreRecoveryRepository
 import com.aistudio.breakfree.recovr.data.RealtimeCommunityRepository
@@ -23,13 +24,18 @@ import com.aistudio.breakfree.recovr.model.CommunityCategory
 import com.aistudio.breakfree.recovr.model.CommunityPost
 import com.aistudio.breakfree.recovr.model.DailyCheckIn
 import com.aistudio.breakfree.recovr.model.GracePeriodState
+import com.aistudio.breakfree.recovr.model.PauseGateUiState
+import com.aistudio.breakfree.recovr.model.PauseOutcome
+import com.aistudio.breakfree.recovr.model.PauseSession
 import com.aistudio.breakfree.recovr.model.StreakState
 import com.aistudio.breakfree.recovr.model.StreakSummary
 import com.aistudio.breakfree.recovr.model.UserProfile
 import com.aistudio.breakfree.recovr.monitoring.DnsShield
+import com.aistudio.breakfree.recovr.pause.PauseNotifier
 import com.aistudio.breakfree.recovr.stealth.StealthManager
 import com.aistudio.breakfree.recovr.monitoring.MonitoringManager
 import com.aistudio.breakfree.recovr.monitoring.MonitoringPreferences
+import com.aistudio.breakfree.recovr.monitoring.UninstallLock
 import com.aistudio.breakfree.recovr.update.AutoUpdater
 import com.aistudio.breakfree.recovr.monitoring.PrivateDnsShield
 import com.google.firebase.Firebase
@@ -69,7 +75,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Language state
     private val _language = MutableStateFlow(
-        if (repository.getLanguageCode() == "ar") AppLanguage.ARABIC else AppLanguage.ENGLISH
+        if (repository.getLanguageCode() == "ar") AppLanguage.ARABIC else if (repository.getLanguageCode() == "fr") AppLanguage.FRENCH else AppLanguage.ENGLISH
     )
     val language: StateFlow<AppLanguage> = _language.asStateFlow()
 
@@ -164,6 +170,31 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isSosModalVisible = MutableStateFlow(false)
     val isSosModalVisible: StateFlow<Boolean> = _isSosModalVisible.asStateFlow()
 
+    // The Pause: a ten-minute gate offered instead of a relapse. The promise is the
+    // sentence the user wants to read in that moment; the counter is their private
+    // record of waves they rode out.
+    private val _pauseGate = MutableStateFlow(PauseGateUiState())
+    val pauseGate: StateFlow<PauseGateUiState> = _pauseGate.asStateFlow()
+
+    private val _myPromise = MutableStateFlow(repository.getMyPromise())
+    val myPromise: StateFlow<String> = _myPromise.asStateFlow()
+
+    private val _urgesSurvived = MutableStateFlow(repository.getUrgesSurvivedCount())
+    val urgesSurvived: StateFlow<Int> = _urgesSurvived.asStateFlow()
+
+    // Rewire 30
+    private val _rewireCompleted = MutableStateFlow(repository.getRewireCompletedIds())
+    val rewireCompleted: StateFlow<Set<Int>> = _rewireCompleted.asStateFlow()
+
+    private val _rewireCurrentIndex = MutableStateFlow(repository.getRewireCurrentIndex())
+    val rewireCurrentIndex: StateFlow<Int> = _rewireCurrentIndex.asStateFlow()
+
+    // Weekly insight card
+    private val _insightDismissedWeek = MutableStateFlow(repository.getLastInsightWeek())
+    val insightDismissedWeek: StateFlow<Long> = _insightDismissedWeek.asStateFlow()
+
+    private var pauseTickerJob: Job? = null
+
     // Dialog states
     private val _showVictoryDialog = MutableStateFlow(false)
     val showVictoryDialog: StateFlow<Boolean> = _showVictoryDialog.asStateFlow()
@@ -253,6 +284,9 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         // Posts cached on-device by older builds are not public posts; drop them.
         repository.clearLegacyCommunityCache()
         initAuthListener()
+        // A pause gate that was open when the process died is resumed from storage, so
+        // the ten minutes are never silently lost (and an expired one is closed out).
+        restorePauseGateIfActive()
         // If a duress PIN wiped recovery data, the in-memory streak/check-ins must be
         // re-read from storage once duress mode ends, so the dashboard shows the truth.
         viewModelScope.launch {
@@ -537,17 +571,44 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun toggleLanguage() {
-        val next = if (_language.value == AppLanguage.ENGLISH) AppLanguage.ARABIC else AppLanguage.ENGLISH
+        val next = when (_language.value) {
+            AppLanguage.ENGLISH -> AppLanguage.ARABIC
+            AppLanguage.ARABIC -> AppLanguage.FRENCH
+            AppLanguage.FRENCH -> AppLanguage.ENGLISH
+        }
         _language.value = next
         repository.saveLanguageCode(next.code)
+    }
+
+    fun setLanguage(lang: AppLanguage) {
+        if (_language.value == lang) return
+        _language.value = lang
+        repository.saveLanguageCode(lang.code)
     }
 
     // ---------------------------------------------------------------------------------
     // Monitoring settings. These are persisted in MonitoringPreferences, which the
     // accessibility service reads, so the switches actually change behaviour.
+    // While the 90-day commitment runs, the OFF direction of every protection switch
+    // (and the DNS shield) is refused outright — no PIN, no gate, no exception.
     // ---------------------------------------------------------------------------------
 
+    /** True when the action must be refused because the commitment is running. */
+    private fun commitmentBlocksTampering(): Boolean {
+        val app = getApplication<Application>()
+        if (!UninstallLock.tamperLocked(app)) return false
+        val days = UninstallLock.daysRemaining(app)
+        val msg = when (_language.value) {
+            AppLanguage.ARABIC -> "تعافي: قفل الـ 90 يوماً مفعّل (متبقي $days يوماً) — تعطيل الحماية مقفل حتى انتهاء الالتزام."
+            AppLanguage.FRENCH -> "BreakFree : l'engagement de 90 jours est actif ($days jours restants) — la protection ne peut pas être désactivée avant la fin."
+            else -> "BreakFree: the 90-day commitment is active ($days days left) — protection cannot be turned off until it ends."
+        }
+        android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_LONG).show()
+        return true
+    }
+
     fun setStrictGuardEnabled(enabled: Boolean) {
+        if (!enabled && commitmentBlocksTampering()) return
         monitoringPreferences.strictGuardEnabled = enabled
         _strictGuardEnabled.value = enabled
         if (!enabled) MonitoringManager.dismissFeedback()
@@ -555,11 +616,13 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setWarningBufferEnabled(enabled: Boolean) {
+        if (!enabled && commitmentBlocksTampering()) return
         monitoringPreferences.warningBufferEnabled = enabled
         _warningBufferEnabled.value = enabled
     }
 
     fun setKeywordFilterEnabled(enabled: Boolean) {
+        if (!enabled && commitmentBlocksTampering()) return
         monitoringPreferences.keywordFilterEnabled = enabled
         _keywordFilterEnabled.value = enabled
     }
@@ -617,10 +680,10 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun disableDnsShield() {
+        // While the 90-day commitment is running the shield is locked, no matter which
+        // mechanism is active (Device-Owner Private DNS or the plain DNS VPN).
+        if (commitmentBlocksTampering()) return
         val app = getApplication<Application>()
-        // While the 90-day commitment is running the shield is locked on purpose. The card
-        // hides this action; the guard keeps a stale screen from bypassing it.
-        if (DnsShield.isLockedByCommitment(app)) return
         if (_dnsShieldBusy.value) return
         _dnsShieldBusy.value = true
         _dnsShieldResult.value = null
@@ -804,6 +867,186 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
         _isSosModalVisible.value = false
         syncProfileToCloud()
         triggerHaptic(longVibe = false)
+    }
+
+    // ---------------------------------------------------------------------------------
+    // The Pause: ten minutes between the urge and the relapse.
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * Opens the gate and starts the countdown. Three notifications are scheduled
+     * immediately from local templates, then replaced by the model's personalised
+     * versions if it answers in time — the gate itself never waits for the network.
+     */
+    fun startPauseGate() {
+        if (_pauseGate.value.isVisible) return
+        val now = System.currentTimeMillis()
+        val promise = _myPromise.value
+
+        repository.setActivePauseStart(now)
+        _isSosModalVisible.value = false
+
+        val templates = pauseTemplates(promise)
+        _pauseGate.value = PauseGateUiState(
+            isVisible = true,
+            startedAtMs = now,
+            remainingMs = PauseGateUiState.PAUSE_DURATION_MS,
+            messages = templates,
+            isPreparing = _aiConsentGranted.value
+        )
+        PauseNotifier.schedule(getApplication(), templates, now)
+        startPauseTicker()
+
+        if (!_aiConsentGranted.value) return
+
+        viewModelScope.launch {
+            val generated = aiCounselor.generatePauseMessages(
+                promise = promise,
+                cleanDays = _streakState.value.totalSecondsClean / SECONDS_PER_DAY,
+                bestStreakDays = _streakState.value.longestStreakSeconds / SECONDS_PER_DAY,
+                urgesSurvived = _urgesSurvived.value,
+                language = _language.value
+            )
+            val state = _pauseGate.value
+            if (!state.isVisible || state.startedAtMs != now) return@launch
+            if (generated.size < 3) {
+                _pauseGate.update { it.copy(isPreparing = false) }
+                return@launch
+            }
+            val personalised = List(3) { index -> generated.getOrElse(index) { templates[index] } }
+            _pauseGate.update { it.copy(messages = personalised, isPreparing = false) }
+            // Reschedule so the remaining alarms carry the model's wording too.
+            PauseNotifier.schedule(getApplication(), personalised, now)
+        }
+    }
+
+    /** Called when a pause notification is tapped: reopen the gate if it is still open. */
+    fun resumePauseGate() {
+        if (!_pauseGate.value.isVisible) restorePauseGateIfActive()
+    }
+
+    fun finishPauseGate(outcome: PauseOutcome) {
+        val state = _pauseGate.value
+        if (!state.isVisible) return
+        pauseTickerJob?.cancel()
+        PauseNotifier.cancel(getApplication())
+        repository.setActivePauseStart(0L)
+        repository.recordPauseSession(
+            PauseSession(
+                id = UUID.randomUUID().toString(),
+                startedAtMs = state.startedAtMs,
+                durationMs = state.durationMs,
+                outcome = outcome
+            )
+        )
+        if (outcome == PauseOutcome.SURVIVED) {
+            _urgesSurvived.value = repository.getUrgesSurvivedCount()
+            toast(Translations.t("pause_gate_survived_toast", _language.value))
+            triggerHaptic(longVibe = false)
+        }
+        _pauseGate.value = PauseGateUiState()
+    }
+
+    fun saveMyPromise(text: String) {
+        repository.saveMyPromise(text)
+        _myPromise.value = repository.getMyPromise()
+        toast(Translations.t("pause_promise_saved", _language.value))
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Rewire 30: micro-lessons.
+    // ---------------------------------------------------------------------------------
+
+    fun markRewireLessonComplete(id: Int) {
+        repository.markRewireLessonComplete(id)
+        _rewireCompleted.value = repository.getRewireCompletedIds()
+        // Advance to the next uncompleted lesson.
+        val completed = _rewireCompleted.value
+        var next = _rewireCurrentIndex.value
+        while (next <= 30 && completed.contains(next)) next++
+        if (next > 30) next = 30
+        repository.setRewireCurrentIndex(next)
+        _rewireCurrentIndex.value = next
+        triggerHaptic(longVibe = false)
+    }
+
+    fun setRewireLesson(index: Int) {
+        repository.setRewireCurrentIndex(index.coerceIn(1, 30))
+        _rewireCurrentIndex.value = repository.getRewireCurrentIndex()
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Weekly insight card.
+    // ---------------------------------------------------------------------------------
+
+    fun dismissInsightCard(weekStartMs: Long) {
+        repository.setLastInsightWeek(weekStartMs)
+        _insightDismissedWeek.value = weekStartMs
+    }
+
+    private fun pauseTemplates(promise: String): List<String> = PauseMessages.templates(
+        promise = promise,
+        cleanDays = _streakState.value.totalSecondsClean / SECONDS_PER_DAY,
+        bestDays = _streakState.value.longestStreakSeconds / SECONDS_PER_DAY,
+        urgesSurvived = _urgesSurvived.value,
+        language = _language.value
+    )
+
+    private fun startPauseTicker() {
+        pauseTickerJob?.cancel()
+        pauseTickerJob = viewModelScope.launch {
+            while (isActive) {
+                val state = _pauseGate.value
+                if (!state.isVisible) break
+                val remaining =
+                    (state.durationMs - (System.currentTimeMillis() - state.startedAtMs))
+                        .coerceAtLeast(0L)
+                _pauseGate.update { it.copy(remainingMs = remaining) }
+                if (remaining <= 0L) break
+                delay(500L)
+            }
+        }
+    }
+
+    private fun restorePauseGateIfActive() {
+        val start = repository.getActivePauseStart()
+        if (start <= 0L) return
+        val elapsed = System.currentTimeMillis() - start
+        when {
+            elapsed < 0L -> repository.setActivePauseStart(0L)
+            elapsed < PauseGateUiState.PAUSE_DURATION_MS -> {
+                _pauseGate.value = PauseGateUiState(
+                    isVisible = true,
+                    startedAtMs = start,
+                    remainingMs = PauseGateUiState.PAUSE_DURATION_MS - elapsed,
+                    messages = pauseTemplates(_myPromise.value),
+                    isPreparing = false
+                )
+                // The alarms were scheduled before the process died and normally survive
+                // it, but a user-level force-stop clears them. Re-arming from the original
+                // start time is harmless when they are already queued (the past offsets
+                // are skipped) and is the difference between a restored gate that
+                // reminds the user and one that stays silent.
+                PauseNotifier.schedule(
+                    getApplication(),
+                    pauseTemplates(_myPromise.value),
+                    start
+                )
+                startPauseTicker()
+            }
+
+            else -> {
+                repository.recordPauseSession(
+                    PauseSession(
+                        id = UUID.randomUUID().toString(),
+                        startedAtMs = start,
+                        durationMs = PauseGateUiState.PAUSE_DURATION_MS,
+                        outcome = PauseOutcome.ABANDONED
+                    )
+                )
+                repository.setActivePauseStart(0L)
+            }
+        }
     }
 
     fun simulateGracePeriod() {
@@ -1127,5 +1370,7 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     companion object {
         /** How long a community write may stay unacknowledged before we call it failed. */
         private const val PUBLISH_TIMEOUT_MS = 20_000L
+
+        private const val SECONDS_PER_DAY = 86_400L
     }
 }

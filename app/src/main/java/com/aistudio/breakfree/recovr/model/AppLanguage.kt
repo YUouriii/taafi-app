@@ -2,5 +2,6 @@ package com.aistudio.breakfree.recovr.model
 
 enum class AppLanguage(val code: String, val displayName: String, val nativeName: String, val isRtl: Boolean) {
     ENGLISH("en", "English", "English", false),
-    ARABIC("ar", "Arabic", "العربية", true)
+    ARABIC("ar", "Arabic", "العربية", true),
+    FRENCH("fr", "French", "Français", false)
 }

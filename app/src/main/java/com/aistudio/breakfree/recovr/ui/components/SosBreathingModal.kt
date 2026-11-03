@@ -25,12 +25,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
@@ -88,7 +90,8 @@ fun SosBreathingModal(
     isVisible: Boolean,
     language: AppLanguage,
     onDismiss: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    onStartPause: () -> Unit
 ) {
     if (!isVisible) return
 
@@ -214,6 +217,28 @@ fun SosBreathingModal(
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
+
+                // The Pause: a stronger option than "I'm calm" for someone on the edge.
+                OutlinedButton(
+                    onClick = onStartPause,
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GreenCalmBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GreenCalmLight),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("sos_pause_button")
+                ) {
+                    Icon(imageVector = Icons.Default.Timer, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = Translations.t("sos_pause_btn", language),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Bottom Completion Button
                 Button(
@@ -371,6 +396,8 @@ private fun BreathingCycleView(language: AppLanguage) {
         Text(
             text = if (language == AppLanguage.ARABIC)
                 "يخفض ضغط الدم ويعيد توازن الجهاز العصبي السمبثاوي خلال 2-3 دورات."
+            else if (language == AppLanguage.FRENCH)
+                "Ralentit le rythme cardiaque et stimule la relaxation parasympathique en 2-3 cycles."
             else
                 "Slows heart rate & stimulates parasympathetic relaxation within 2-3 cycles.",
             color = WhiteDim,

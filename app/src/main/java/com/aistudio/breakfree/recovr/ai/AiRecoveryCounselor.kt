@@ -26,13 +26,13 @@ data class CounselorReply(
 /**
  * The recovery counselor, backed by whichever model the user configured.
  *
- * Supports three request shapes (see [AiProviderKind]):
- *  1. Gemini `generateContent` (x-goog-api-key).
- *  2. Any OpenAI-compatible `/chat/completions` endpoint (Bearer key).
- *  3. Anthropic `/messages` (x-api-key).
+ * Supports two routes:
+ *  1. Gemini `generateContent` (x-goog-api-key) with the user's AI Studio key.
+ *  2. Firebase AI Logic (App-Check-protected) when no key is configured — this is how
+ *     Google-signed-in users get Gemini without pasting any key.
  *
- * If no key is configured, or the call fails, the offline neuroscience-backed counselor
- * answers instead — the chat never dies and never invents a model response.
+ * If neither works, the offline neuroscience-backed counselor answers — the chat never
+ * dies and never invents a model response.
  */
 class AiRecoveryCounselor(
     private val getRecentCheckIns: () -> List<DailyCheckIn>,
@@ -95,18 +95,11 @@ class AiRecoveryCounselor(
 
         if (!config.isConfigured) {
             // Gemini has a second, key-less route through Firebase AI Logic (App Check
-            // protected). The other providers do not, so they simply stay offline.
-            if (config.kind == AiProviderKind.GEMINI) {
-                return generateWithFirebase(userMessage, systemPrompt)
-            }
-            throw IllegalStateException("No API key configured for ${config.kind.titleEn}")
+            // protected). That's how Google-signed-in users get answers without a key.
+            return generateWithFirebase(userMessage, systemPrompt)
         }
 
-        return when (config.kind) {
-            AiProviderKind.GEMINI -> generateWithGemini(config, systemPrompt, userMessage)
-            AiProviderKind.OPENAI_COMPATIBLE -> generateWithOpenAiCompatible(config, systemPrompt, userMessage)
-            AiProviderKind.ANTHROPIC -> generateWithAnthropic(config, systemPrompt, userMessage)
-        }
+        return generateWithGemini(config, systemPrompt, userMessage)
     }
 
     // ---------------------------------------------------------------------------------
@@ -116,7 +109,8 @@ class AiRecoveryCounselor(
     private suspend fun generateWithGemini(
         config: AiProviderConfig,
         systemPrompt: String,
-        userMessage: String
+        userMessage: String,
+        historyTurns: List<Pair<String, String>> = history
     ): String {
         val candidates = if (config.model.isBlank()) {
             val preferred = workingGeminiModel
@@ -136,7 +130,8 @@ class AiRecoveryCounselor(
                     config = config,
                     modelName = modelName,
                     systemPrompt = systemPrompt,
-                    userMessage = userMessage
+                    userMessage = userMessage,
+                    historyTurns = historyTurns
                 )
                 if (result.isNotBlank()) {
                     workingGeminiModel = modelName
@@ -154,7 +149,7 @@ class AiRecoveryCounselor(
 
         // Last resort for Google users: the App Check protected Firebase route.
         return try {
-            generateWithFirebase(userMessage, systemPrompt)
+            generateWithFirebase(userMessage, systemPrompt, historyTurns)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -166,12 +161,13 @@ class AiRecoveryCounselor(
         config: AiProviderConfig,
         modelName: String,
         systemPrompt: String,
-        userMessage: String
+        userMessage: String,
+        historyTurns: List<Pair<String, String>> = history
     ): String {
         val url = "${config.effectiveBaseUrl}/models/$modelName:generateContent"
 
         val contents = JSONArray()
-        for ((role, text) in history) {
+        for ((role, text) in historyTurns) {
             contents.put(
                 JSONObject().apply {
                     put("role", if (role == "user") "user" else "model")
@@ -226,8 +222,12 @@ class AiRecoveryCounselor(
     }
 
     /** Firebase AI Logic route: only used when Gemini is selected and no key is set. */
-    private suspend fun generateWithFirebase(userMessage: String, systemPrompt: String): String {
-        val firebaseHistory = history.map { (role, text) ->
+    private suspend fun generateWithFirebase(
+        userMessage: String,
+        systemPrompt: String,
+        historyTurns: List<Pair<String, String>> = history
+    ): String {
+        val firebaseHistory = historyTurns.map { (role, text) ->
             if (role == "user") content("user") { text(text) } else content("model") { text(text) }
         }
 
@@ -252,124 +252,6 @@ class AiRecoveryCounselor(
             }
         }
         throw lastError ?: IllegalStateException("No model available")
-    }
-
-    // ---------------------------------------------------------------------------------
-    // OpenAI-compatible (OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Ollama, …)
-    // ---------------------------------------------------------------------------------
-
-    private suspend fun generateWithOpenAiCompatible(
-        config: AiProviderConfig,
-        systemPrompt: String,
-        userMessage: String
-    ): String {
-        val url = if (config.effectiveBaseUrl.endsWith("/chat/completions")) {
-            config.effectiveBaseUrl
-        } else {
-            "${config.effectiveBaseUrl}/chat/completions"
-        }
-
-        val messages = JSONArray()
-        messages.put(JSONObject().apply { put("role", "system"); put("content", systemPrompt) })
-        for ((role, text) in history) {
-            messages.put(
-                JSONObject().apply {
-                    put("role", if (role == "user") "user" else "assistant")
-                    put("content", text)
-                }
-            )
-        }
-        messages.put(JSONObject().apply { put("role", "user"); put("content", userMessage) })
-
-        val body = JSONObject().apply {
-            put("model", config.effectiveModel)
-            put("messages", messages)
-            put("temperature", 0.7)
-            put("max_tokens", MAX_OUTPUT_TOKENS)
-            put("stream", false)
-        }
-
-        val response = postJson(
-            url = url,
-            headers = mapOf("Authorization" to "Bearer ${config.apiKey}"),
-            body = body.toString()
-        )
-
-        val choices = JSONObject(response).optJSONArray("choices")
-            ?: throw RuntimeException("No choices returned by the provider")
-        if (choices.length() == 0) throw RuntimeException("Empty choices list")
-
-        val message = choices.getJSONObject(0).optJSONObject("message")
-            ?: throw RuntimeException("No message in the provider response")
-
-        // Some compatible servers answer with a parts array instead of a string.
-        val contentValue = message.opt("content")
-        return when (contentValue) {
-            is String -> contentValue
-            is JSONArray -> buildString {
-                for (i in 0 until contentValue.length()) {
-                    val part = contentValue.optJSONObject(i) ?: continue
-                    part.optString("text").takeIf { it.isNotBlank() }?.let(::append)
-                }
-            }
-            else -> message.optString("reasoning_content").ifBlank { "" }
-        }.also {
-            if (it.isBlank()) throw RuntimeException("The provider returned an empty message")
-        }
-    }
-
-    // ---------------------------------------------------------------------------------
-    // Anthropic Claude
-    // ---------------------------------------------------------------------------------
-
-    private suspend fun generateWithAnthropic(
-        config: AiProviderConfig,
-        systemPrompt: String,
-        userMessage: String
-    ): String {
-        val url = if (config.effectiveBaseUrl.endsWith("/messages")) {
-            config.effectiveBaseUrl
-        } else {
-            "${config.effectiveBaseUrl}/messages"
-        }
-
-        val messages = JSONArray()
-        for ((role, text) in history) {
-            messages.put(
-                JSONObject().apply {
-                    put("role", if (role == "user") "user" else "assistant")
-                    put("content", text)
-                }
-            )
-        }
-        messages.put(JSONObject().apply { put("role", "user"); put("content", userMessage) })
-
-        val body = JSONObject().apply {
-            put("model", config.effectiveModel)
-            put("max_tokens", MAX_OUTPUT_TOKENS)
-            put("system", systemPrompt)
-            put("messages", messages)
-            put("temperature", 0.7)
-        }
-
-        val response = postJson(
-            url = url,
-            headers = mapOf(
-                "x-api-key" to config.apiKey,
-                "anthropic-version" to ANTHROPIC_VERSION
-            ),
-            body = body.toString()
-        )
-
-        val content = JSONObject(response).optJSONArray("content")
-            ?: throw RuntimeException("No content returned by Claude")
-
-        val text = StringBuilder()
-        for (i in 0 until content.length()) {
-            val block = content.optJSONObject(i) ?: continue
-            if (block.optString("type") == "text") text.append(block.optString("text"))
-        }
-        return text.toString()
     }
 
     // ---------------------------------------------------------------------------------
@@ -425,8 +307,112 @@ class AiRecoveryCounselor(
         }
     }
 
+    // ---------------------------------------------------------------------------------
+    // The Pause: three notifications, generated in one request, before the gate opens.
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * Writes the three notifications shown during a ten-minute pause.
+     *
+     * One call up front means the gate never depends on the network while someone is in
+     * crisis: if the model is slow or offline, the caller keeps the built-in templates.
+     * Returns an empty list when nothing usable came back.
+     */
+    suspend fun generatePauseMessages(
+        promise: String,
+        cleanDays: Long,
+        bestStreakDays: Long,
+        urgesSurvived: Int,
+        language: AppLanguage
+    ): List<String> {
+        val systemPrompt = pauseSystemPrompt(language)
+        val facts = buildString {
+            appendLine("Promise (their own words, may be empty): ${promise.ifBlank { "(none)" }}")
+            appendLine("Current clean streak: $cleanDays days")
+            appendLine("Longest streak: $bestStreakDays days")
+            append("Urges already survived with this pause: $urgesSurvived")
+        }
+
+        return try {
+            withTimeout(PAUSE_TIMEOUT_MS) {
+                val config = getConfig()
+                val raw = if (config.isConfigured) {
+                    val candidates = if (config.model.isBlank()) {
+                        listOfNotNull(workingGeminiModel) + GEMINI_MODEL_CANDIDATES
+                    } else {
+                        listOf(config.effectiveModel)
+                    }.distinct()
+
+                    var lastError: Exception? = null
+                    var text: String? = null
+                    for (modelName in candidates) {
+                        try {
+                            val result = callGemini(
+                                config = config,
+                                modelName = modelName,
+                                systemPrompt = systemPrompt,
+                                userMessage = facts,
+                                historyTurns = emptyList()
+                            )
+                            if (result.isNotBlank()) {
+                                text = result
+                                workingGeminiModel = modelName
+                                break
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            lastError = e
+                        }
+                    }
+                    text ?: throw (lastError ?: IllegalStateException("No model available"))
+                } else {
+                    generateWithFirebase(facts, systemPrompt, emptyList())
+                }
+                PauseMessages.parse(raw)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Pause messages unavailable: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private fun pauseSystemPrompt(language: AppLanguage): String {
+        val languageName = when (language) {
+            AppLanguage.ARABIC -> "Arabic"
+            AppLanguage.FRENCH -> "French"
+            AppLanguage.ENGLISH -> "English"
+        }
+        return """
+            You write three short push notifications for BreakFree, a recovery app. They arrive 3, 6 and 9 minutes into a voluntary 10-minute pause the user chose instead of relapsing.
+            Rules:
+            1. Exactly three lines, one notification per line. No numbering, no bullets, no quotes around the line.
+            2. Each line is one or two short sentences, under 160 characters. Max 2 sentences per line.
+            3. Strictly logical tone: time, mechanics, and data only. Zero emotional manipulation, zero guilt-tripping, zero motivational quotes, zero cringe family references.
+            4. If a promise is provided, use their own words first; never invent one.
+            5. Never invent progress, numbers or facts beyond the ones given.
+            6. Line 1 (3 min): the urge is a temporary chemical spike that peaks and fades in ~90 seconds.
+            7. Line 2 (6 min): relapsing now resets the streak to zero; cite urges already survived.
+            8. Line 3 (9 min): the user chose to wait; 1 minute left for a conscious choice, not an impulsive one.
+            9. Reply in $languageName only.
+        """.trimIndent()
+    }
+
     private fun buildSystemPrompt(cleanDays: Long, language: AppLanguage): String {
         val isAr = language == AppLanguage.ARABIC
+        val isFr = language == AppLanguage.FRENCH
+        val preferredLanguageLine = when {
+            isAr -> "Arabic (العربية)"
+            isFr -> "French (Français)"
+            else -> "English"
+        }
+        val replyLanguageLine = when {
+            isAr -> "warm, supportive Arabic"
+            isFr -> "warm, supportive French"
+            else -> "motivating, plain English"
+        }
         val recentCheckIns = getRecentCheckIns()
 
         val checkInContext = if (recentCheckIns.isNotEmpty()) {
@@ -444,13 +430,13 @@ You are the BreakFree / تعافي resilience counselor. You specialise in Cogni
 
 Client profile:
 - Current clean streak: $cleanDays days
-- Preferred language: ${if (isAr) "Arabic (العربية)" else "English"}
+- Preferred language: $preferredLanguageLine
 $checkInContext
 Guidelines:
 1. Deep empathy and neuroscience: frame urges as a natural dopamine readjustment wave, remove shame, and reinforce prefrontal neuroplasticity.
 2. Use the mood/urge data above. If urge was high or mood was low recently, point out the pattern gently and offer coping mechanisms that fit it.
 3. Be concrete and actionable (4-7-8 breathing, sensory grounding, changing rooms, cold water).
-4. Reply only in ${if (isAr) "warm, supportive Arabic" else "motivating, plain English"}.
+4. Reply only in $replyLanguageLine.
 5. You are a supportive companion, not a clinician. Never diagnose, never prescribe, and never claim to be a human or a therapist.
 6. If the user mentions self-harm, suicide or being in danger, stop counseling and tell them to contact local emergency services or a crisis line immediately.
         """.trimIndent()
@@ -461,17 +447,18 @@ Guidelines:
 
         /** Only used when the user leaves the Gemini model field blank. */
         private val GEMINI_MODEL_CANDIDATES = listOf(
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-2.5-flash",
-            "gemini-1.5-flash-8b"
+            "gemini-3.5-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-2.5-flash"
         )
 
-        private const val ANTHROPIC_VERSION = "2023-06-01"
         private const val MAX_OUTPUT_TOKENS = 1200
         private const val MAX_HISTORY_TURNS = 10
         private const val CONNECT_TIMEOUT_MS = 20_000
         private const val READ_TIMEOUT_MS = 60_000
         private const val REQUEST_TIMEOUT_MS = 75_000L
+
+        /** Pause notifications are useful only if they arrive fast; after this, templates. */
+        private const val PAUSE_TIMEOUT_MS = 20_000L
     }
 }

@@ -232,7 +232,11 @@ private fun CategoryChip(
     language: AppLanguage,
     onClick: () -> Unit
 ) {
-    val title = if (language == AppLanguage.ARABIC) category.titleAr else category.titleEn
+    val title = when (language) {
+        AppLanguage.ARABIC -> category.titleAr
+        AppLanguage.FRENCH -> category.titleFr
+        else -> category.titleEn
+    }
     val tint = if (isSelected) GreenCalmLight else TextSecondary
 
     Row(
@@ -309,7 +313,7 @@ private fun CommunityPostCard(
             Spacer(modifier = Modifier.width(8.dp))
 
             Pill(
-                text = if (language == AppLanguage.ARABIC) post.category.titleAr else post.category.titleEn,
+                text = if (language == AppLanguage.ARABIC) post.category.titleAr else if (language == AppLanguage.FRENCH) post.category.titleFr else post.category.titleEn,
                 color = SoftGold,
                 icon = post.category.costumeType
             )
@@ -318,7 +322,7 @@ private fun CommunityPostCard(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = if (language == AppLanguage.ARABIC) post.contentAr else post.contentEn,
+            text = if (language == AppLanguage.ARABIC) post.contentAr else if (language == AppLanguage.FRENCH) post.contentEn else post.contentEn,
             color = TextPrimary,
             fontSize = 13.5.sp,
             lineHeight = 20.sp
@@ -449,7 +453,7 @@ private fun NewPostDialog(
                 ) {
                     CommunityCategory.entries.forEach { category ->
                         val selected = category == postCategory
-                        val label = if (language == AppLanguage.ARABIC) category.titleAr else category.titleEn
+                        val label = if (language == AppLanguage.ARABIC) category.titleAr else if (language == AppLanguage.FRENCH) category.titleFr else category.titleEn
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))

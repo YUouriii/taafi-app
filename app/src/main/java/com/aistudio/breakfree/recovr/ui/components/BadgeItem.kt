@@ -41,8 +41,16 @@ fun BadgeItem(
     language: AppLanguage,
     modifier: Modifier = Modifier
 ) {
-    val title = if (language == AppLanguage.ARABIC) badge.titleAr else badge.titleEn
-    val desc = if (language == AppLanguage.ARABIC) badge.descriptionAr else badge.descriptionEn
+    val title = when (language) {
+        AppLanguage.ARABIC -> badge.titleAr
+        AppLanguage.FRENCH -> badge.titleFr
+        else -> badge.titleEn
+    }
+    val desc = when (language) {
+        AppLanguage.ARABIC -> badge.descriptionAr
+        AppLanguage.FRENCH -> badge.descriptionFr
+        else -> badge.descriptionEn
+    }
 
     Row(
         modifier = modifier

@@ -58,7 +58,6 @@ import com.aistudio.breakfree.recovr.ui.components.GhostButton
 import com.aistudio.breakfree.recovr.ui.components.IconTile
 import com.aistudio.breakfree.recovr.ui.components.OverlayPermissionDialog
 import com.aistudio.breakfree.recovr.ui.components.Pill
-import com.aistudio.breakfree.recovr.ui.components.ProtectionTamperGateDialog
 import com.aistudio.breakfree.recovr.ui.components.PrimaryButton
 import com.aistudio.breakfree.recovr.ui.components.ScreenGutter
 import com.aistudio.breakfree.recovr.ui.components.ScreenHeader
@@ -131,16 +130,6 @@ fun MonitoringSettingsScreen(
     var showAppsConsentDialog by remember { mutableStateOf(false) }
     var showDnsConsentDialog by remember { mutableStateOf(false) }
 
-    // Tamper gate: while the 90-day commitment runs, weakening a protection surface
-    // (monitoring switches, DNS shield) requires the Stealth PIN — or an explicit
-    // acknowledgement when no PIN was set. This closes the "flip it off in one tap
-    // while junking" path.
-    val tamperLocked = UninstallLock.isActive(context) && UninstallLock.daysRemaining(context) > 0
-    var pendingTamperAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-    fun gateTamper(action: () -> Unit) {
-        if (tamperLocked) pendingTamperAction = action else action()
-    }
-
     // Live state of the two system gates the content monitor depends on. Re-read on
     // resume, because both are flipped on a system screen.
     var accessibilityEnabled by remember { mutableStateOf(AccessibilityMonitor.isEnabled(context)) }
@@ -212,19 +201,6 @@ fun MonitoringSettingsScreen(
                 startDnsShield()
             },
             onDecline = { showDnsConsentDialog = false }
-        )
-    }
-
-    pendingTamperAction?.let { action ->
-        ProtectionTamperGateDialog(
-            context = context,
-            language = language,
-            daysRemaining = UninstallLock.daysRemaining(context),
-            onVerified = {
-                pendingTamperAction = null
-                action()
-            },
-            onDismiss = { pendingTamperAction = null }
         )
     }
 
@@ -433,10 +409,7 @@ fun MonitoringSettingsScreen(
                         trailing = {
                             GuardSwitch(
                                 checked = strictGuardMode,
-                                onCheckedChange = { on ->
-                                    if (on) viewModel.setStrictGuardEnabled(true)
-                                    else gateTamper { viewModel.setStrictGuardEnabled(false) }
-                                },
+                                onCheckedChange = { viewModel.setStrictGuardEnabled(it) },
                                 testTag = "toggle_strict_guard_mode"
                             )
                         }
@@ -450,10 +423,7 @@ fun MonitoringSettingsScreen(
                         trailing = {
                             GuardSwitch(
                                 checked = warningBufferEnabled,
-                                onCheckedChange = { on ->
-                                    if (on) viewModel.setWarningBufferEnabled(true)
-                                    else gateTamper { viewModel.setWarningBufferEnabled(false) }
-                                },
+                                onCheckedChange = { viewModel.setWarningBufferEnabled(it) },
                                 testTag = "toggle_warning_buffer"
                             )
                         }
@@ -467,10 +437,7 @@ fun MonitoringSettingsScreen(
                         trailing = {
                             GuardSwitch(
                                 checked = keywordFilterEnabled,
-                                onCheckedChange = { on ->
-                                    if (on) viewModel.setKeywordFilterEnabled(true)
-                                    else gateTamper { viewModel.setKeywordFilterEnabled(false) }
-                                },
+                                onCheckedChange = { viewModel.setKeywordFilterEnabled(it) },
                                 testTag = "toggle_explicit_filter"
                             )
                         }
@@ -552,7 +519,7 @@ fun MonitoringSettingsScreen(
                         ).show()
                     },
                     onCheck = { viewModel.refreshDnsShield() },
-                    onDisable = { gateTamper { viewModel.disableDnsShield() } }
+                    onDisable = { viewModel.disableDnsShield() }
                 )
             }
 
@@ -642,10 +609,10 @@ private fun ShieldStatusCard(
         Spacer(modifier = Modifier.height(14.dp))
 
         Text(
-            text = if (language == AppLanguage.ARABIC) {
-                "يقرأ درع المراقبة شريط العنوان والنص الظاهر في المتصفحات التي تفتحها، والنص الظاهر في تطبيقات التواصل المدعومة، على جهازك فقط، لرصد المحتوى الإباحي ومنحك نافذة تراجع. لا يُخزَّن هذا النص ولا يُرسَل، ولا يُسجَّل أي انتكاسة دون تأكيدك."
-            } else {
-                "The Shield reads the address bar and visible text of the browsers you open, and the visible text of the supported social apps, on this device only, to spot explicit content and offer you a step-back window. That text is never stored or uploaded, and nothing is recorded unless you confirm it."
+            text = when (language) {
+                AppLanguage.ARABIC -> "يقرأ درع المراقبة شريط العنوان والنص الظاهر في المتصفحات التي تفتحها، والنص الظاهر في تطبيقات التواصل المدعومة، على جهازك فقط، لرصد المحتوى الإباحي ومنحك نافذة تراجع. لا يُخزَّن هذا النص ولا يُرسَل، ولا يُسجَّل أي انتكاسة دون تأكيدك."
+                AppLanguage.FRENCH -> "Le Bouclier lit la barre d'adresse et le texte visible des navigateurs que vous ouvrez, et le texte visible des apps sociales prises en charge, sur cet appareil uniquement, pour repérer le contenu explicite et vous offrir une fenêtre de recul. Ce texte n'est jamais stocké ni envoyé, et rien n'est enregistré sans votre confirmation."
+                else -> "The Shield reads the address bar and visible text of the browsers you open, and the visible text of the supported social apps, on this device only, to spot explicit content and offer you a step-back window. That text is never stored or uploaded, and nothing is recorded unless you confirm it."
             },
             color = TextSecondary,
             fontSize = 12.5.sp,

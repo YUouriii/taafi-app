@@ -62,6 +62,8 @@ import com.aistudio.breakfree.recovr.ui.components.SectionHeader
 import com.aistudio.breakfree.recovr.ui.components.SoftCard
 import com.aistudio.breakfree.recovr.ui.components.SosChip
 import com.aistudio.breakfree.recovr.ui.components.StreakProgressRing
+import com.aistudio.breakfree.recovr.ui.components.RewireLessonCard
+import com.aistudio.breakfree.recovr.ui.components.WeeklyInsightCard
 import com.aistudio.breakfree.recovr.ui.components.headingTracking
 import com.aistudio.breakfree.recovr.ui.components.rememberOverlayPermissionGranted
 import com.aistudio.breakfree.recovr.ui.theme.AuroraTeal
@@ -92,6 +94,20 @@ fun DashboardScreen(
     val dailyCheckIns by viewModel.dailyCheckIns.collectAsState()
     val isCheckInDialogOpen by viewModel.isCheckInDialogOpen.collectAsState()
 
+    val rewireCompleted by viewModel.rewireCompleted.collectAsState()
+    val rewireCurrentIndex by viewModel.rewireCurrentIndex.collectAsState()
+    val insightDismissedWeek by viewModel.insightDismissedWeek.collectAsState()
+
+    val weekStartMs = remember {
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        cal.timeInMillis
+    }
+
     val duressMode by StealthManager.duressMode.collectAsState()
 
     if (duressMode) {
@@ -120,6 +136,7 @@ fun DashboardScreen(
 
     val showVictoryDialog by viewModel.showVictoryDialog.collectAsState()
     val showRelapseDialog by viewModel.showRelapseDialog.collectAsState()
+    val urgesSurvived by viewModel.urgesSurvived.collectAsState()
 
     // Keyed on the list so the dialog always edits the current entry rather than a
     // stale snapshot captured before the last save.
@@ -195,6 +212,34 @@ fun DashboardScreen(
                     )
                 }
 
+                // Rewire 30 micro-lessons
+                item {
+                    RewireLessonCard(
+                        currentIndex = rewireCurrentIndex,
+                        completed = rewireCompleted,
+                        language = language,
+                        onMarkComplete = { viewModel.markRewireLessonComplete(it) },
+                        onPrevious = { viewModel.setRewireLesson(rewireCurrentIndex - 1) },
+                        onNext = { viewModel.setRewireLesson(rewireCurrentIndex + 1) }
+                    )
+                }
+
+                // Weekly insight card (shown once per week)
+                if (insightDismissedWeek < weekStartMs) {
+                    val weekStartStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                        .format(java.util.Date(weekStartMs))
+                    val checkInsThisWeek = dailyCheckIns.count { it.dateString >= weekStartStr }
+                    item {
+                        WeeklyInsightCard(
+                            daysCleanThisWeek = streakSummary.days.coerceAtMost(7),
+                            urgesSurvivedThisWeek = urgesSurvived,
+                            checkInsThisWeek = checkInsThisWeek,
+                            language = language,
+                            onDismiss = { viewModel.dismissInsightCard(weekStartMs) }
+                        )
+                    }
+                }
+
                 // Quick stats
                 item {
                     SectionHeader(title = Translations.t("quick_stats", language))
@@ -202,7 +247,8 @@ fun DashboardScreen(
                 item {
                     QuickStatsGrid(
                         language = language,
-                        streakSummary = streakSummary
+                        streakSummary = streakSummary,
+                        urgesSurvived = urgesSurvived
                     )
                 }
 
@@ -459,12 +505,13 @@ private fun EmergencySosCard(
 @Composable
 private fun QuickStatsGrid(
     language: AppLanguage,
-    streakSummary: com.aistudio.breakfree.recovr.model.StreakSummary
+    streakSummary: com.aistudio.breakfree.recovr.model.StreakSummary,
+    urgesSurvived: Int
 ) {
-    val phaseTitle = if (language == AppLanguage.ARABIC) {
-        streakSummary.recoveryPhase.titleAr
-    } else {
-        streakSummary.recoveryPhase.titleEn
+    val phaseTitle = when (language) {
+        AppLanguage.ARABIC -> streakSummary.recoveryPhase.titleAr
+        AppLanguage.FRENCH -> streakSummary.recoveryPhase.titleFr
+        else -> streakSummary.recoveryPhase.titleEn
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -478,12 +525,12 @@ private fun QuickStatsGrid(
                 testTag = "stat_card_longest_streak"
             )
             StatTile(
-                title = Translations.t("grace_saves", language),
-                value = "${streakSummary.gracePeriodSavesCount}",
-                iconType = CostumeIconType.TIMER,
+                title = Translations.t("urges_surfed", language),
+                value = "$urgesSurvived",
+                iconType = CostumeIconType.WAVE,
                 tint = GreenCalmLight,
                 modifier = Modifier.weight(1f),
-                testTag = "stat_card_grace_saves"
+                testTag = "stat_card_urges_surfed"
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -558,7 +605,11 @@ private fun BadgeShowcaseCard(
     language: AppLanguage,
     modifier: Modifier = Modifier
 ) {
-    val title = if (language == AppLanguage.ARABIC) badge.titleAr else badge.titleEn
+    val title = when (language) {
+        AppLanguage.ARABIC -> badge.titleAr
+        AppLanguage.FRENCH -> badge.titleFr
+        else -> badge.titleEn
+    }
     val unlocked = badge.unlocked
 
     Column(
@@ -649,7 +700,7 @@ private fun DebugGraceCard(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = if (language == AppLanguage.ARABIC) "تجربة" else "Test",
+                text = if (language == AppLanguage.ARABIC) "تجربة" else if (language == AppLanguage.FRENCH) "Test" else "Test",
                 color = SoftGold,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.5.sp

@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!--
+      The three reminders inside a ten-minute pause are timers the user asked for, so they
+      must land on time even if the phone is idle or the app is in a low standby bucket.
+      Inexact alarms were deferred past the whole gate on a stock device.
+    -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!--
       Read-only check of the active network's Private DNS state, so the DNS shield card
       can tell "active" from "off" after the user returns from system Settings.
     -->
@@ -159,6 +165,11 @@
         <!-- Fires on the release date so the commitment ends on its own. -->
         <receiver
             android:name=".monitoring.UninstallLockReleaseReceiver"
+            android:exported="false" />
+
+        <!-- Posts the 3/6/9-minute reminder while a ten-minute pause gate is open. -->
+        <receiver
+            android:name=".pause.PauseReminderReceiver"
             android:exported="false" />
 
         <!--

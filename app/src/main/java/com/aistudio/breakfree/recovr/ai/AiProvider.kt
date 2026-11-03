@@ -3,16 +3,9 @@ package com.aistudio.breakfree.recovr.ai
 import com.aistudio.breakfree.recovr.model.AppLanguage
 
 /**
- * The shape of the endpoint the counselor talks to. Three families cover almost every
- * hosted and local model:
- *
- *  - [GEMINI] Google AI Studio / Vertex keys.
- *  - [OPENAI_COMPATIBLE] anything that speaks `/chat/completions`: OpenAI, OpenRouter,
- *    Groq, DeepSeek, Mistral, Together, xAI, Ollama, LM Studio, vLLM …
- *  - [ANTHROPIC] Claude's `/messages` API.
- *
- * Every field except the key has a working default, so "pick a provider, paste a key"
- * is enough — but all of them stay editable for self-hosted endpoints.
+ * The shape of the endpoint the counselor talks to. Only Google Gemini is supported now:
+ * users sign in with Google (Firebase AI Logic) or paste an AI Studio key; the offline
+ * neuroscience counselor answers if neither works.
  */
 enum class AiProviderKind(
     val key: String,
@@ -20,35 +13,23 @@ enum class AiProviderKind(
     val defaultModel: String,
     val keyPageUrl: String,
     val titleEn: String,
-    val titleAr: String
+    val titleAr: String,
+    val titleFr: String = titleEn
 ) {
     GEMINI(
         key = "gemini",
         defaultBaseUrl = "https://generativelanguage.googleapis.com/v1beta",
-        defaultModel = "gemini-2.0-flash",
+        defaultModel = "gemini-3.5-flash-lite",
         keyPageUrl = "https://aistudio.google.com/app/apikey",
         titleEn = "Google Gemini",
         titleAr = "Google Gemini"
-    ),
-    OPENAI_COMPATIBLE(
-        key = "openai",
-        defaultBaseUrl = "https://api.openai.com/v1",
-        defaultModel = "gpt-4o-mini",
-        keyPageUrl = "https://platform.openai.com/api-keys",
-        titleEn = "OpenAI-compatible",
-        titleAr = "متوافق مع OpenAI"
-    ),
-    ANTHROPIC(
-        key = "anthropic",
-        defaultBaseUrl = "https://api.anthropic.com/v1",
-        defaultModel = "claude-3-5-haiku-latest",
-        keyPageUrl = "https://console.anthropic.com/settings/keys",
-        titleEn = "Anthropic Claude",
-        titleAr = "Anthropic Claude"
     );
 
-    fun title(language: AppLanguage): String =
-        if (language == AppLanguage.ARABIC) titleAr else titleEn
+    fun title(language: AppLanguage): String = when (language) {
+        AppLanguage.ARABIC -> titleAr
+        AppLanguage.FRENCH -> titleFr
+        else -> titleEn
+    }
 
     companion object {
         fun fromKey(key: String?): AiProviderKind =
@@ -75,6 +56,6 @@ data class AiProviderConfig(
     val isConfigured: Boolean
         get() = apiKey.isNotBlank()
 
-    /** Shown under the chat header, e.g. "Google Gemini · gemini-2.0-flash". */
+    /** Shown under the chat header, e.g. "Google Gemini · gemini-3.5-flash-lite". */
     fun label(language: AppLanguage): String = "${kind.title(language)} · $effectiveModel"
 }

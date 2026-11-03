@@ -4,10 +4,7 @@
       ".read": "auth != null",
       ".indexOn": ["timestampMillis"],
       "$postId": {
-        ".write": "auth != null && (
-          (!data.exists() && newData.hasChildren(['authorAlias','daysClean','category','contentEn','contentAr','timestampMillis','fistBumps'])) ||
-          (data.exists() && newData.hasChild('fistBumps') && !newData.hasChild('authorAlias') && !newData.hasChild('authorAvatarBg') && !newData.hasChild('daysClean') && !newData.hasChild('category') && !newData.hasChild('contentEn') && !newData.hasChild('contentAr') && !newData.hasChild('timestampMillis'))
-        )",
+        ".write": "auth != null && (\n          (!data.exists() && newData.hasChildren(['authorAlias','daysClean','category','contentEn','contentAr','timestampMillis','fistBumps'])) ||\n          (data.exists() && newData.hasChild('fistBumps') && newData.child('fistBumps').isNumber() && newData.child('fistBumps').val() >= 0 && newData.child('authorAlias').val() == data.child('authorAlias').val() && newData.child('daysClean').val() == data.child('daysClean').val() && newData.child('category').val() == data.child('category').val() && newData.child('contentEn').val() == data.child('contentEn').val() && newData.child('contentAr').val() == data.child('contentAr').val() && newData.child('timestampMillis').val() == data.child('timestampMillis').val())\n        )",
         "authorAlias": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
         },

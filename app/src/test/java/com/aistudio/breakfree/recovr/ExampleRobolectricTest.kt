@@ -2,8 +2,12 @@ package com.aistudio.breakfree.recovr
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.aistudio.breakfree.recovr.ai.PauseMessages
 import com.aistudio.breakfree.recovr.data.BreakFreeRepository
+import com.aistudio.breakfree.recovr.model.AppLanguage
 import com.aistudio.breakfree.recovr.model.DailyCheckIn
+import com.aistudio.breakfree.recovr.model.PauseOutcome
+import com.aistudio.breakfree.recovr.model.PauseSession
 import com.aistudio.breakfree.recovr.model.UserProfile
 import com.google.firebase.Timestamp
 import org.junit.Assert.assertEquals
@@ -74,7 +78,7 @@ class ExampleRobolectricTest {
     val config = BreakFreeRepository(context).getAiConfig()
 
     assertFalse("Without a key the counselor must stay offline", config.isConfigured)
-    assertEquals("gemini-2.0-flash", config.effectiveModel)
+    assertEquals("gemini-3.5-flash-lite", config.effectiveModel)
   }
 
   @Test
@@ -169,5 +173,61 @@ class ExampleRobolectricTest {
 
     assertTrue("The local reset is newer information and must be pushed", localIsAhead)
     assertTrue("The streak must stay reset", repo.getStreakState().totalSecondsClean < 60L)
+  }
+
+  @Test
+  fun `pause sessions are stored locally and only survived waves are counted`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val repo = BreakFreeRepository(context)
+
+    assertEquals(0, repo.getUrgesSurvivedCount())
+
+    repo.recordPauseSession(PauseSession("a", 1_000L, 600_000L, PauseOutcome.SURVIVED))
+    repo.recordPauseSession(PauseSession("b", 2_000L, 600_000L, PauseOutcome.ENDED))
+    repo.recordPauseSession(PauseSession("c", 3_000L, 600_000L, PauseOutcome.SURVIVED))
+
+    assertEquals(3, repo.getPauseSessions().size)
+    assertEquals(2, repo.getUrgesSurvivedCount())
+    assertEquals(PauseOutcome.SURVIVED, repo.getPauseSessions().first().outcome)
+  }
+
+  @Test
+  fun `my promise survives a new repository instance`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    BreakFreeRepository(context).saveMyPromise("I want to be present for my daughter")
+
+    assertEquals(
+      "I want to be present for my daughter",
+      BreakFreeRepository(context).getMyPromise()
+    )
+  }
+
+  @Test
+  fun `pause templates always produce three localised notifications`() {
+    val english = PauseMessages.templates("Stay present", 14, 30, 5, AppLanguage.ENGLISH)
+    val arabic = PauseMessages.templates("", 14, 30, 5, AppLanguage.ARABIC)
+    val french = PauseMessages.templates("Rester présent", 14, 30, 5, AppLanguage.FRENCH)
+
+    assertEquals(3, english.size)
+    assertEquals(3, arabic.size)
+    assertEquals(3, french.size)
+    assertTrue(english.first().contains("14"))
+    assertTrue(french.first().contains("14"))
+    assertTrue("No promise falls back to the streak line", arabic.first().contains("14"))
+  }
+
+  @Test
+  fun `model output is cleaned into at most three notification lines`() {
+    val raw = """
+      1. "You wrote: stay present." 
+      - 14 days in, this wave passes.
+      • 5 urges already surfed.
+      4. A fourth line that must be dropped.
+    """.trimIndent()
+
+    val parsed = PauseMessages.parse(raw)
+    assertEquals(3, parsed.size)
+    assertEquals("You wrote: stay present.", parsed[0])
+    assertEquals("14 days in, this wave passes.", parsed[1])
   }
 }
