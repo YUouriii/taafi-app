@@ -4,11 +4,6 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag to attach the APK to (e.g. v1.5)"
-        required: true
-        type: string
 
 jobs:
   build:
@@ -27,15 +22,15 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # The release keystore. CI signs with the same key as the local release
-      # build, so a CI-built APK can upgrade an installed release-signed app.
-      # Without it the APK would be debug-signed and users would get
-      # INSTALL_FAILED_UPDATE_INCOMPATIBLE when updating.
-      - name: Restore release keystore
-        env:
-          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
-        run: |
-          echo "$RELEASE_KEYSTORE_B64" | base64 -d > my-upload-key.jks
+      # Optional but recommended: same signing key on every CI build.
+      # Store your debug keystore base64-encoded as DEBUG_KEYSTORE_B64:
+      #   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.android\debug.keystore"))
+      # - name: Restore debug keystore
+      #   env:
+      #     DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+      #   run: |
+      #     mkdir -p ~/.android
+      #     echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
 
       - name: Write google-services.json from secret
         env:
@@ -45,27 +40,31 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build release APK
-        env:
-          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: ./gradlew :app:assembleRelease --stacktrace
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
 
-      - name: Collect APKs
+      - name: Rename APK
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/release/app-release.apk out/BreakFree.apk
-          cp app/build/outputs/apk/release/app-release.apk "out/breakfree-${{ github.event.inputs.tag || github.ref_name }}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk out/BreakFree.apk
 
-      # "BreakFree.apk" is the exact asset name the website fetches
-      # (scripts/fetch-apk.mjs), so it must always be the release-signed build.
       - name: Attach APK to release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            out/BreakFree.apk
-            out/breakfree-${{ github.event.inputs.tag || github.ref_name }}.apk
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: out/BreakFree.apk
           generate_release_notes: true
+
+      # Tell the website to rebuild so it picks up this release: the site
+      # fetches the latest APK and shows the new version number. Create the
+      # hook in Netlify (Site configuration â†’ Build & deploy â†’ Build hooks)
+      # and store its URL here as the NETLIFY_BUILD_HOOK secret.
+      - name: Rebuild the website
+        env:
+          NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+        run: |
+          if [ -n "$NETLIFY_BUILD_HOOK" ]; then
+            curl -sS -X POST "$NETLIFY_BUILD_HOOK" -o /dev/null \
+              -w "Website rebuild requested (HTTP %{http_code})\n"
+          else
+            echo "NETLIFY_BUILD_HOOK is not set â€” skipping the website rebuild."
+          fi
