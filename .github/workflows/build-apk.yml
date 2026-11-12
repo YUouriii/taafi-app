@@ -4,6 +4,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the APK to (e.g. v1.5)"
+        required: true
+        type: string
 
 jobs:
   build:
@@ -22,15 +27,15 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Optional but recommended: same signing key on every CI build.
-      # Store your debug keystore base64-encoded as DEBUG_KEYSTORE_B64:
-      #   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.android\debug.keystore"))
-      # - name: Restore debug keystore
-      #   env:
-      #     DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
-      #   run: |
-      #     mkdir -p ~/.android
-      #     echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+      # The release keystore. CI signs with the same key as the local release
+      # build, so a CI-built APK can upgrade an installed release-signed app.
+      # Without it the APK would be debug-signed and users would get
+      # INSTALL_FAILED_UPDATE_INCOMPATIBLE when updating.
+      - name: Restore release keystore
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          echo "$RELEASE_KEYSTORE_B64" | base64 -d > my-upload-key.jks
 
       - name: Write google-services.json from secret
         env:
@@ -40,16 +45,27 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+      - name: Build release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: ./gradlew :app:assembleRelease --stacktrace
 
-      - name: Rename APK
+      - name: Collect APKs
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk out/BreakFree.apk
+          cp app/build/outputs/apk/release/app-release.apk out/BreakFree.apk
+          cp app/build/outputs/apk/release/app-release.apk "out/breakfree-${{ github.event.inputs.tag || github.ref_name }}.apk"
 
+      # "BreakFree.apk" is the exact asset name the website fetches
+      # (scripts/fetch-apk.mjs), so it must always be the release-signed build.
       - name: Attach APK to release
         uses: softprops/action-gh-release@v2
         with:
-          files: out/BreakFree.apk
+          files: |
+            out/BreakFree.apk
+            out/breakfree-${{ github.event.inputs.tag || github.ref_name }}.apk
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           generate_release_notes: true
