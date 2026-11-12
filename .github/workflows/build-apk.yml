@@ -11,16 +11,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       # Optional but recommended: same signing key on every CI build.
       # Store your debug keystore base64-encoded as DEBUG_KEYSTORE_B64:
@@ -82,7 +82,7 @@ jobs:
           ls -lh out/BreakFree.apk
 
       - name: Attach APK to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: out/BreakFree.apk
           generate_release_notes: true
