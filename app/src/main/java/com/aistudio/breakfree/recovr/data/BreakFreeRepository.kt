@@ -67,6 +67,9 @@ class BreakFreeRepository(context: Context) {
         // Weekly insight card
         private const val KEY_LAST_INSIGHT_WEEK = "last_insight_week"
 
+        // AI chat: whether the suggestion chips tray is collapsed.
+        private const val KEY_AI_SUGGESTIONS_HIDDEN = "ai_suggestions_hidden"
+
         /** Keep the local history small; it is a counter and a pattern, not an archive. */
         private const val MAX_PAUSE_SESSIONS = 500
 
@@ -297,6 +300,16 @@ class BreakFreeRepository(context: Context) {
 
     fun setLastInsightWeek(weekStartMs: Long) {
         prefs.edit().putLong(KEY_LAST_INSIGHT_WEEK, weekStartMs).apply()
+    }
+
+    // ---------------------------------------------------------------------------------
+    // AI chat: suggestion tray visibility survives tab switches and restarts.
+    // ---------------------------------------------------------------------------------
+
+    fun getAiSuggestionsHidden(): Boolean = prefs.getBoolean(KEY_AI_SUGGESTIONS_HIDDEN, false)
+
+    fun setAiSuggestionsHidden(hidden: Boolean) {
+        prefs.edit().putBoolean(KEY_AI_SUGGESTIONS_HIDDEN, hidden).apply()
     }
 
     /**

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -75,6 +76,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -329,6 +331,10 @@ fun BreakFreeApp(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
         ) {
+            // The floating nav bar gets out of the way while the keyboard is up,
+            // so chat composers can sit directly above the IME.
+            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+
             AnimatedContent(
                 targetState = selectedTab,
                 transitionSpec = {
@@ -356,12 +362,14 @@ fun BreakFreeApp(
                 }
             }
 
-            FloatingNavBar(
-                items = navItems,
-                selectedIndex = selectedTab,
-                language = language,
-                onSelect = { selectedTab = it }
-            )
+            if (!imeVisible) {
+                FloatingNavBar(
+                    items = navItems,
+                    selectedIndex = selectedTab,
+                    language = language,
+                    onSelect = { selectedTab = it }
+                )
+            }
         }
 
         // Full screen emergency SOS modal

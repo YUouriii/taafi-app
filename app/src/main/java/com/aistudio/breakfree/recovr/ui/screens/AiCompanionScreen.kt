@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -81,6 +85,7 @@ import com.aistudio.breakfree.recovr.ui.theme.GreenCalm
 import com.aistudio.breakfree.recovr.ui.theme.GreenCalmContainer
 import com.aistudio.breakfree.recovr.ui.theme.GreenCalmLight
 import com.aistudio.breakfree.recovr.ui.theme.OnGreenCalm
+import com.aistudio.breakfree.recovr.ui.theme.SoftCoral
 import com.aistudio.breakfree.recovr.ui.theme.SoftGold
 import com.aistudio.breakfree.recovr.ui.theme.TextMuted
 import com.aistudio.breakfree.recovr.ui.theme.TextPrimary
@@ -120,6 +125,14 @@ fun AiCompanionScreen(
         }
     }
 
+    // When the keyboard opens, keep the newest message and the composer in view.
+    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    LaunchedEffect(imeBottom) {
+        if (imeBottom > 0 && chatMessages.isNotEmpty()) {
+            listState.animateScrollToItem(chatMessages.size - 1)
+        }
+    }
+
     if (showAiConsentDialog) {
         AiConsentDialog(
             language = language,
@@ -149,7 +162,7 @@ fun AiCompanionScreen(
             title = Translations.t("ai_chip_intense_urge", language),
             iconType = CostumeIconType.ALERT,
             isEmergency = true,
-            accentColor = Color(0xFFFB7185)
+            accentColor = SoftCoral
         ),
         UrgeActionChip(
             title = Translations.t("ai_chip_halt", language),
@@ -170,11 +183,15 @@ fun AiCompanionScreen(
             title = Translations.t("breathing_sos_chip", language),
             iconType = CostumeIconType.MEDITATION,
             isSosDirect = true,
-            accentColor = Color(0xFFFB7185)
+            accentColor = SoftCoral
         )
     )
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding()
+    ) {
         ScreenHeader(
             title = Translations.t("ai_title", language),
             subtitle = Translations.t("ai_subtitle", language),
@@ -230,8 +247,11 @@ fun AiCompanionScreen(
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        // Guided starting points (collapsible tray to reclaim chat space)
-        var showSuggestions by remember { mutableStateOf(true) }
+        // Guided starting points (collapsible tray to reclaim chat space).
+        // The collapsed state is persisted so switching tabs or restarting the
+        // app does not bring the tray back against the user's choice.
+        val suggestionsHidden by viewModel.aiSuggestionsHidden.collectAsState()
+        val showSuggestions = !suggestionsHidden
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -245,7 +265,7 @@ fun AiCompanionScreen(
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.SemiBold
             )
-            TextButton(onClick = { showSuggestions = !showSuggestions }) {
+            TextButton(onClick = { viewModel.setAiSuggestionsHidden(!suggestionsHidden) }) {
                 Text(
                     text = if (showSuggestions)
                         Translations.t("ai_hide_suggestions", language)

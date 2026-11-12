@@ -33,7 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -126,7 +128,7 @@ fun BreakFreeBackground(
                 )
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(Color(0x1A5EEAD4), Color.Transparent),
+                        colors = listOf(AuroraTeal.copy(alpha = 0x1A / 255f), Color.Transparent),
                         center = Offset(size.width * 0.08f, size.height * 0.62f),
                         radius = size.width * 0.7f
                     ),
@@ -536,12 +538,12 @@ fun SosChip(onClick: () -> Unit, modifier: Modifier = Modifier) {
         Icon(
             imageVector = CostumeIconType.ALERT.toVector(),
             contentDescription = null,
-            tint = Color(0xFFFF8FA3),
+            tint = DangerRed,
             modifier = Modifier.size(14.dp)
         )
         Text(
             text = "SOS",
-            color = Color(0xFFFF8FA3),
+            color = DangerRed,
             fontSize = 11.5.sp,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = 0.8.sp
@@ -550,8 +552,9 @@ fun SosChip(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * The BreakFree mark: a small sprout drawn with paths, so it is genuinely the
- * app's own icon rather than a font glyph.
+ * The BreakFree mark: the site's half-sun — a dawn-coloured dome rising over an
+ * ink baseline, drawn with paths so it is genuinely the app's own icon rather
+ * than a font glyph.
  */
 @Composable
 fun BrandMark(
@@ -564,11 +567,7 @@ fun BrandMark(
         modifier = modifier
             .size(size)
             .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    listOf(Color(0xFF1B3B2E), Color(0xFF0C1C16))
-                )
-            )
+            .background(BlackCard)
             .border(1.dp, GreenCalm.copy(alpha = 0.45f), shape)
             .then(
                 if (glow) Modifier.shadow(14.dp, shape, spotColor = GreenCalm.copy(alpha = 0.55f))
@@ -579,52 +578,27 @@ fun BrandMark(
         Canvas(modifier = Modifier.size(size * 0.62f)) {
             val w = this.size.width
             val h = this.size.height
-            val cx = w / 2f
-            val stemBottom = h * 0.94f
-            val stemTop = h * 0.34f
 
-            // stem
-            drawLine(
-                color = Color(0xFF9FF3CE),
-                start = Offset(cx, stemBottom),
-                end = Offset(cx, stemTop),
-                strokeWidth = w * 0.075f,
-                cap = StrokeCap.Round
+            // Dawn dome: upper half-disc, flat side down at 62% height.
+            val domeRadius = w * 0.5f
+            val domeBottom = h * 0.62f
+            drawArc(
+                color = GreenCalm,
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = true,
+                topLeft = Offset(0f, domeBottom - domeRadius),
+                size = Size(domeRadius * 2f, domeRadius * 2f)
             )
 
-            // left leaf
-            val leftLeaf = Path().apply {
-                moveTo(cx, h * 0.56f)
-                cubicTo(
-                    w * 0.10f, h * 0.52f,
-                    w * 0.06f, h * 0.20f,
-                    w * 0.30f, h * 0.14f
-                )
-                cubicTo(
-                    w * 0.42f, h * 0.34f,
-                    w * 0.34f, h * 0.52f,
-                    cx, h * 0.56f
-                )
-                close()
-            }
-            drawPath(leftLeaf, Brush.linearGradient(listOf(GreenCalm, AuroraTeal)))
-
-            // right leaf (smaller, rotated feel)
-            val rightLeaf = Path().apply {
-                moveTo(cx, h * 0.44f)
-                cubicTo(
-                    w * 0.56f, h * 0.38f,
-                    w * 0.66f, h * 0.10f,
-                    w * 0.92f, h * 0.16f
-                )
-                cubicTo(
-                    w * 0.90f, h * 0.44f,
-                    w * 0.72f, h * 0.50f,
-                    cx, h * 0.44f
-                )
-                close()
-            }
-            drawPath(rightLeaf, Brush.linearGradient(listOf(Color(0xFF9FF3CE), GreenCalm)))
+            // Ink baseline, sitting just below the horizon line.
+            val barHeight = h * 0.08f
+            drawRoundRect(
+                color = WhiteGlowing,
+                topLeft = Offset(w * 0.05f, h * 0.78f),
+                size = Size(w * 0.9f, barHeight),
+                cornerRadius = CornerRadius(barHeight / 2f)
+            )
         }
     }
 }

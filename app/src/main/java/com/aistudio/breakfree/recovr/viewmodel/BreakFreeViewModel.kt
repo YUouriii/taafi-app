@@ -193,6 +193,10 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     private val _insightDismissedWeek = MutableStateFlow(repository.getLastInsightWeek())
     val insightDismissedWeek: StateFlow<Long> = _insightDismissedWeek.asStateFlow()
 
+    // AI chat: suggestion tray visibility (persisted)
+    private val _aiSuggestionsHidden = MutableStateFlow(repository.getAiSuggestionsHidden())
+    val aiSuggestionsHidden: StateFlow<Boolean> = _aiSuggestionsHidden.asStateFlow()
+
     private var pauseTickerJob: Job? = null
 
     // Dialog states
@@ -982,6 +986,15 @@ class BreakFreeViewModel(application: Application) : AndroidViewModel(applicatio
     fun dismissInsightCard(weekStartMs: Long) {
         repository.setLastInsightWeek(weekStartMs)
         _insightDismissedWeek.value = weekStartMs
+    }
+
+    // ---------------------------------------------------------------------------------
+    // AI chat: suggestion tray visibility (persisted so it survives tab switches).
+    // ---------------------------------------------------------------------------------
+
+    fun setAiSuggestionsHidden(hidden: Boolean) {
+        repository.setAiSuggestionsHidden(hidden)
+        _aiSuggestionsHidden.value = hidden
     }
 
     private fun pauseTemplates(promise: String): List<String> = PauseMessages.templates(
